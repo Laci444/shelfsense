@@ -1,4 +1,8 @@
-# ShelfSense – week-7 presentation
+---
+geometry:
+  - margin=2cm
+---
+# ShelfSense – presentation
 
 One program, five stores: a library loan advisor that answers **allow / waitlist / reject** for (member, book)
 and suggests available alternatives. Data: 20,685 real Open Library books + synthetic members/loans.
