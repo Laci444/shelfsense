@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+exports/
+*.Zone.Identifier
+*:Zone.Identifier
+*:Avecto.Zone.Identifier

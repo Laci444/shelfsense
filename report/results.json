@@ -1,0 +1,457 @@
+{
+ "started": "2026-10-20 19:58:12",
+ "python": "3.14.8",
+ "store_counts": {
+  "postgres": {
+   "members": 3006,
+   "books": 20685,
+   "loans": 24691,
+   "waitlist": 401
+  },
+  "mongo_books": 20685,
+  "neo4j": {
+   "books": 20685,
+   "borrowed_edges": 24689
+  },
+  "qdrant_points": 20685
+ },
+ "loan_cases": {
+  "cases": 15,
+  "correct": 15,
+  "failed": []
+ },
+ "mongo_validation": {
+  "ebook without size_mb": "rejected by $jsonSchema",
+  "journal with paperback fields": "rejected by $jsonSchema"
+ },
+ "vectors": {
+  "collection": {
+   "points": 20685,
+   "indexed_vectors": 15104,
+   "segments": 2,
+   "hnsw": {
+    "m": 16,
+    "ef_construct": 100,
+    "full_scan_threshold": 10000,
+    "max_indexing_threads": 0,
+    "on_disk": false,
+    "memory": null,
+    "payload_m": null,
+    "inline_storage": null
+   },
+   "payload_indexes": [
+    "genre",
+    "year"
+   ]
+  },
+  "model": "all-MiniLM-L6-v2 (normalised, cosine)",
+  "n_queries": 20,
+  "n_queries_skipped_no_relevant": 0,
+  "retrieval": {
+   "recall@5": 0.73,
+   "MRR": 0.846,
+   "per_query": [
+    {
+     "id": 1,
+     "relevant": 2411,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 2,
+     "relevant": 318,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 3,
+     "relevant": 144,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 4,
+     "relevant": 558,
+     "recall@5": 0.6,
+     "rr": 1.0
+    },
+    {
+     "id": 5,
+     "relevant": 334,
+     "recall@5": 0.8,
+     "rr": 0.5
+    },
+    {
+     "id": 6,
+     "relevant": 85,
+     "recall@5": 0.8,
+     "rr": 0.5
+    },
+    {
+     "id": 7,
+     "relevant": 600,
+     "recall@5": 0.8,
+     "rr": 1.0
+    },
+    {
+     "id": 8,
+     "relevant": 2519,
+     "recall@5": 0.6,
+     "rr": 1.0
+    },
+    {
+     "id": 9,
+     "relevant": 267,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 10,
+     "relevant": 69,
+     "recall@5": 0.4,
+     "rr": 0.25
+    },
+    {
+     "id": 11,
+     "relevant": 1102,
+     "recall@5": 0.6,
+     "rr": 1.0
+    },
+    {
+     "id": 12,
+     "relevant": 574,
+     "recall@5": 0.4,
+     "rr": 1.0
+    },
+    {
+     "id": 13,
+     "relevant": 215,
+     "recall@5": 0.6,
+     "rr": 0.33
+    },
+    {
+     "id": 14,
+     "relevant": 219,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 15,
+     "relevant": 508,
+     "recall@5": 0.6,
+     "rr": 1.0
+    },
+    {
+     "id": 16,
+     "relevant": 958,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 17,
+     "relevant": 835,
+     "recall@5": 0.8,
+     "rr": 1.0
+    },
+    {
+     "id": 18,
+     "relevant": 537,
+     "recall@5": 0.4,
+     "rr": 0.33
+    },
+    {
+     "id": 19,
+     "relevant": 1414,
+     "recall@5": 1.0,
+     "rr": 1.0
+    },
+    {
+     "id": 20,
+     "relevant": 2578,
+     "recall@5": 0.2,
+     "rr": 1.0
+    }
+   ]
+  },
+  "ann_unfiltered": [
+   {
+    "hnsw_ef": 16,
+    "ann_recall@10": 0.945,
+    "results_returned_avg": 10,
+    "results_returned_min": 10,
+    "latency_ms_median": 3.32,
+    "exact_latency_ms_median": 3.98
+   },
+   {
+    "hnsw_ef": 64,
+    "ann_recall@10": 0.995,
+    "results_returned_avg": 10,
+    "results_returned_min": 10,
+    "latency_ms_median": 3.49,
+    "exact_latency_ms_median": 4.5
+   },
+   {
+    "hnsw_ef": 128,
+    "ann_recall@10": 1.0,
+    "results_returned_avg": 10,
+    "results_returned_min": 10,
+    "latency_ms_median": 3.1,
+    "exact_latency_ms_median": 3.84
+   }
+  ],
+  "filter_5pct": {
+   "filter": "year >= 2009",
+   "rows_kept": 908,
+   "rows_total": 20685,
+   "share": 0.044,
+   "runs": [
+    {
+     "hnsw_ef": 16,
+     "ann_recall@10": 1.0,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 2.41,
+     "exact_latency_ms_median": 2.27
+    },
+    {
+     "hnsw_ef": 64,
+     "ann_recall@10": 1.0,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 2.31,
+     "exact_latency_ms_median": 2.4
+    },
+    {
+     "hnsw_ef": 128,
+     "ann_recall@10": 1.0,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 2.25,
+     "exact_latency_ms_median": 2.23
+    }
+   ]
+  },
+  "filter_50pct": {
+   "filter": "year >= 1998",
+   "rows_kept": 10005,
+   "rows_total": 20685,
+   "share": 0.484,
+   "runs": [
+    {
+     "hnsw_ef": 16,
+     "ann_recall@10": 0.85,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 2.63,
+     "exact_latency_ms_median": 3.78
+    },
+    {
+     "hnsw_ef": 64,
+     "ann_recall@10": 0.99,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 2.63,
+     "exact_latency_ms_median": 3.76
+    },
+    {
+     "hnsw_ef": 128,
+     "ann_recall@10": 0.99,
+     "results_returned_avg": 10,
+     "results_returned_min": 10,
+     "latency_ms_median": 3.57,
+     "exact_latency_ms_median": 4.43
+    }
+   ]
+  }
+ },
+ "join": {
+  "query": "epic fantasy with dragons and magic",
+  "genre_filter": "fantasy",
+  "qdrant_top_k": 10,
+  "free_after_join": 10,
+  "rows": [
+   {
+    "id": "OL2660328W",
+    "title": "Calling on dragons",
+    "available": 3,
+    "total": 3,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL73428W",
+    "title": "Dragon Wing",
+    "available": 5,
+    "total": 5,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL2660331W",
+    "title": "Dealing with Dragons",
+    "available": 5,
+    "total": 5,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL3525442W",
+    "title": "Dragon path",
+    "available": 3,
+    "total": 3,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL2660314W",
+    "title": "Searching for dragons",
+    "available": 5,
+    "total": 5,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL13750205W",
+    "title": "The book of the dragon",
+    "available": 1,
+    "total": 1,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL3347888W",
+    "title": "The real Middle-earth",
+    "available": 5,
+    "total": 5,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL3521984W",
+    "title": "Dragonswan",
+    "available": 4,
+    "total": 4,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL2485508W",
+    "title": "Dragons luck",
+    "available": 3,
+    "total": 3,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL90388W",
+    "title": "The Fire Dragon",
+    "available": 4,
+    "total": 5,
+    "active_loans": 1,
+    "waiting": 0
+   }
+  ]
+ },
+ "concurrency": {
+  "rounds": 20,
+  "rounds_correct": 20,
+  "samples": [
+   {
+    "round": 1,
+    "results": {
+     "S_PREM": [
+      "allow",
+      "copy available"
+     ],
+     "S_STD": [
+      "waitlist",
+      "no copy available"
+     ]
+    },
+    "available_after": 0
+   },
+   {
+    "round": 2,
+    "results": {
+     "S_PREM": [
+      "allow",
+      "copy available"
+     ],
+     "S_STD": [
+      "waitlist",
+      "no copy available"
+     ]
+    },
+    "available_after": 0
+   },
+   {
+    "round": 3,
+    "results": {
+     "S_PREM": [
+      "allow",
+      "copy available"
+     ],
+     "S_STD": [
+      "waitlist",
+      "no copy available"
+     ]
+    },
+    "available_after": 0
+   }
+  ]
+ },
+ "stale_cache": {
+  "first_read": [
+   "waitlist",
+   "no copy available",
+   false
+  ],
+  "postgres_truth": [
+   "allow",
+   "copy available"
+  ],
+  "cached_read_after_change": [
+   "waitlist",
+   "no copy available",
+   true
+  ],
+  "ttl_left_s": 300,
+  "after_invalidation": [
+   "allow",
+   "copy available",
+   false
+  ]
+ },
+ "update_across": {
+  "before": {
+   "qdrant_title": "The Caves of Steel",
+   "neo4j_title": "The Caves of Steel",
+   "neo4j_edge": null
+  },
+  "after_update_book": {
+   "redis_decision_invalidated": true,
+   "qdrant_vector_changed": true,
+   "qdrant_title": "Deep Sea Engineering",
+   "qdrant_refreshed_at_moved": true,
+   "neo4j_title": "Deep Sea Engineering"
+  },
+  "after_borrow": {
+   "neo4j_edge": "active"
+  },
+  "after_return": {
+   "neo4j_edge": "returned"
+  },
+  "after_add_book": {
+   "qdrant_has_point": true,
+   "neo4j_title": "Demo: A Book About Bees",
+   "postgres_copies": 2
+  },
+  "after_delete_book": {
+   "qdrant_has_point": false,
+   "neo4j_title": null,
+   "mongo_has_doc": false
+  },
+  "derived_errors": []
+ },
+ "seconds": 22.4
+}
