@@ -1,17 +1,107 @@
 [
-  {"id": 1,  "member": "S_STD",  "book": "OL17610507W", "expected": "allow",    "why": "copy available, standard member, no restrictions"},
-  {"id": 2,  "member": "S_PREM", "book": "OL46401W",    "expected": "allow",    "why": "copy available, premium member"},
-  {"id": 3,  "member": "S_STD",  "book": "OL1963251W",  "expected": "allow",    "why": "exactly one copy left"},
-  {"id": 4,  "member": "S_STD",  "book": "OL46398W",    "expected": "waitlist", "why": "all copies on loan"},
-  {"id": 5,  "member": "S_PREM", "book": "OL46398W",    "expected": "waitlist", "why": "all copies on loan, premium"},
-  {"id": 6,  "member": "S_SUSP", "book": "OL17610507W", "expected": "reject",   "why": "member suspended"},
-  {"id": 7,  "member": "S_FULL", "book": "OL17610507W", "expected": "reject",   "why": "member at max loans"},
-  {"id": 8,  "member": "S_HAS",  "book": "OL46374W",    "expected": "reject",   "why": "member already holds this book"},
-  {"id": 9,  "member": "S_WAIT", "book": "OL7967812W",  "expected": "reject",   "why": "member already on waitlist"},
-  {"id": 10, "member": "S_STD",  "book": "OL16314245W", "expected": "reject",   "why": "journals are premium only"},
-  {"id": 11, "member": "S_PREM", "book": "OL16314245W", "expected": "allow",    "why": "journal, premium member"},
-  {"id": 12, "member": "S_STD",  "book": "OL46390W",    "expected": "allow",    "why": "ebook available, standard member"},
-  {"id": 13, "member": "S_SUSP", "book": "OL46398W",    "expected": "reject",   "why": "suspension takes precedence over waitlist"},
-  {"id": 14, "member": "S_FULL", "book": "OL46398W",    "expected": "reject",   "why": "loan limit takes precedence over waitlist"},
-  {"id": 15, "member": "S_PREM", "book": "OL7967812W",  "expected": "waitlist", "why": "all copies on loan, not yet on waitlist"}
+ {
+  "id": 1,
+  "member": "S_STD",
+  "book": "OL14867684W",
+  "expected": "allow",
+  "why": "copy available, standard member, no restrictions"
+ },
+ {
+  "id": 2,
+  "member": "S_PREM",
+  "book": "OL12332120W",
+  "expected": "allow",
+  "why": "copy available, premium member"
+ },
+ {
+  "id": 3,
+  "member": "S_STD",
+  "book": "OL2010452W",
+  "expected": "allow",
+  "why": "exactly one copy left"
+ },
+ {
+  "id": 4,
+  "member": "S_STD",
+  "book": "OL1961307W",
+  "expected": "waitlist",
+  "why": "all copies on loan"
+ },
+ {
+  "id": 5,
+  "member": "S_PREM",
+  "book": "OL1961307W",
+  "expected": "waitlist",
+  "why": "all copies on loan, premium"
+ },
+ {
+  "id": 6,
+  "member": "S_SUSP",
+  "book": "OL14867684W",
+  "expected": "reject",
+  "why": "member suspended"
+ },
+ {
+  "id": 7,
+  "member": "S_FULL",
+  "book": "OL14867684W",
+  "expected": "reject",
+  "why": "member at max loans"
+ },
+ {
+  "id": 8,
+  "member": "S_HAS",
+  "book": "OL3463799W",
+  "expected": "reject",
+  "why": "member already holds this book"
+ },
+ {
+  "id": 9,
+  "member": "S_WAIT",
+  "book": "OL1918713W",
+  "expected": "reject",
+  "why": "member already on waitlist"
+ },
+ {
+  "id": 10,
+  "member": "S_STD",
+  "book": "OL166385W",
+  "expected": "reject",
+  "why": "journals are premium only"
+ },
+ {
+  "id": 11,
+  "member": "S_PREM",
+  "book": "OL166385W",
+  "expected": "allow",
+  "why": "journal, premium member"
+ },
+ {
+  "id": 12,
+  "member": "S_STD",
+  "book": "OL14857599W",
+  "expected": "allow",
+  "why": "ebook available, standard member"
+ },
+ {
+  "id": 13,
+  "member": "S_SUSP",
+  "book": "OL1961307W",
+  "expected": "reject",
+  "why": "suspension takes precedence over waitlist"
+ },
+ {
+  "id": 14,
+  "member": "S_FULL",
+  "book": "OL1961307W",
+  "expected": "reject",
+  "why": "loan limit takes precedence over waitlist"
+ },
+ {
+  "id": 15,
+  "member": "S_PREM",
+  "book": "OL1918713W",
+  "expected": "waitlist",
+  "why": "all copies on loan, not yet on waitlist"
+ }
 ]

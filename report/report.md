@@ -1,3 +1,7 @@
+---
+geometry:
+  - margin=2cm
+---
 # ShelfSense – report
 
 ## 1. Problem and decision
@@ -83,6 +87,7 @@ similarity order) to read availability and active loans. All 10 had a free copy.
 
 ## 6. Update across stores (`eval/demo_update_across.py`)
 The demo changes title and description of one book through the Advisor, borrows and returns it, then adds and deletes a book. Observed:
+
 | step | Redis | Qdrant | Neo4j |
 |---|---|---|---|
 | `update_book` (title + description) | cached decision deleted | vector changed, title and `refreshed_at` updated (only this book re-embedded) | node title "Deep Sea Engineering" |
