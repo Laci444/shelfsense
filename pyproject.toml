@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shelfsense"
+version = "1.0.0"
+description = "Library loan advisor on PostgreSQL, MongoDB, Redis, Neo4j and Qdrant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "neo4j",
+    "numpy",
+    "psycopg[binary,pool]",
+    "pymongo",
+    "qdrant-client",
+    "redis",
+    "requests",
+    "sentence-transformers",
+    "typer",
+    "textual",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+shelfsense = "shelfsense.cli:app"
+
+# Install with `pip install -e .`: the data/ and eval/ packages and the data files stay in the repository.
+[tool.setuptools]
+packages = ["shelfsense", "shelfsense.stores", "data", "eval"]
+
+[tool.setuptools.package-data]
+shelfsense = ["sql/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
