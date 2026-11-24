@@ -16,7 +16,7 @@ If a derived store is unreachable the source change still stands; the error is k
 import random
 import time
 
-from shelfsense import embeddings
+from shelfsense import embeddings, rules
 from shelfsense.config import PROPAGATE
 from shelfsense.stores import mongo, neo4j_graph, postgres, qdrant_store, redis_cache
 
@@ -98,6 +98,23 @@ class Advisor:
     def explain(self, member_id, book_id):
         """Every loan rule with pass/fail (read-only, straight from PostgreSQL)."""
         return postgres.trace(self.pg, member_id, book_id)
+
+    def explain_decision(self, decision_id):
+        """A stored decision, re-evaluated from its own stored evidence and rule version."""
+        return postgres.explain_decision(self.pg, decision_id)
+
+    # --- versioned rules ----------------------------------------------------
+    def active_rules(self):
+        return rules.active(self.pg)
+
+    def rules_history(self):
+        return rules.history(self.pg)
+
+    def publish_rules(self, changes, note=None):
+        """New rule version. Cached decisions were made with the old one, so they are deleted."""
+        version = rules.publish(self.pg, changes, note)
+        redis_cache.invalidate_all_decisions(self.redis)
+        return version
 
     def return_book(self, member_id, book_id):
         out = postgres.return_book(self.pg, member_id, book_id)

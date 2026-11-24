@@ -32,8 +32,8 @@ def find_books(adv, text, limit=20):
     return postgres.search_books(adv.pg, text, limit)
 
 
-COLOURS = {"allow": "green", "waitlist": "yellow", "reject": "red"}
-ICONS = {"allow": "✔", "waitlist": "⏳", "reject": "✘"}
+COLOURS = {"allow": "green", "waitlist": "yellow", "reject": "red", "needs_info": "cyan"}
+ICONS = {"allow": "✔", "waitlist": "⏳", "reject": "✘", "needs_info": "?"}
 TABS = [("advise", "Advise"), ("recommend", "Recommend"), ("book", "Book"), ("member", "Member"),
         ("librarian", "Librarian"), ("stores", "Stores"), ("scenarios", "Scenarios"), ("demos", "Demos")]
 DEMOS = {"join": ("eval.demo_join", "run"), "concurrency": ("eval.demo_concurrency", "run"),
@@ -158,6 +158,7 @@ class ShelfSenseApp(App):
     #verdict { height: 5; padding: 1 2; margin-bottom: 1; text-style: bold; background: $boost; }
     #verdict.allow { background: $success 25%; border-left: thick $success; }
     #verdict.waitlist { background: $warning 25%; border-left: thick $warning; }
+    #verdict.needs_info { background: $primary 25%; border-left: thick $primary; }
     #verdict.reject { background: $error 25%; border-left: thick $error; }
     #trace-box { width: 46; margin-right: 1; }
     #trace { padding: 0 1; border: round $primary 60%; height: auto; }
@@ -287,7 +288,7 @@ class ShelfSenseApp(App):
                           ("loans", ("id", "title", "loaned", "due")), ("wl", ("id", "title", "position")),
                           ("history", ("id", "title", "loaned", "returned")),
                           ("bookwl", ("member", "name", "since")),
-                          ("decisions", ("#", "time", "member", "book", "title", "outcome", "reason")),
+                          ("decisions", ("#", "time", "member", "book", "title", "outcome", "reason", "rules")),
                           ("cache", ("key", "outcome", "reason", "ttl (s)", "age (s)")),
                           ("cases", ("#", "member", "book", "expected", "why", "result"))):
             self.query_one(f"#{tid}", DataTable).add_columns(*cols)
@@ -720,7 +721,7 @@ class ShelfSenseApp(App):
 
         def done(rows):
             fill(self.query_one("#decisions", DataTable),
-                 [[r[0], str(r[1])[5:16], r[2], r[3], r[4][:30], outcome_cell(r[5]), r[6]] for r in rows])
+                 [[r[0], str(r[1])[5:16], r[2], r[3], r[4][:30], outcome_cell(r[5]), r[6], f"v{r[7]}"] for r in rows])
         self.bg(lambda: postgres.recent_decisions(self.advisor.pg), done, wait=False)
 
     def load_stores(self):

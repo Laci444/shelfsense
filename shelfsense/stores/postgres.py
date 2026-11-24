@@ -1,20 +1,29 @@
-"""PostgreSQL store: loader and the loan transaction."""
+"""PostgreSQL store: schema, loader, the versioned decision and the loan transaction."""
 import json
 from pathlib import Path
 
 import psycopg
 
+from shelfsense import rules
 from shelfsense.config import DATA_DIR, PG_DSN
 
 GEN = DATA_DIR / "generated"
+SCHEMA = Path(__file__).resolve().parents[1] / "sql" / "schema.sql"
 
 
 def connect():
     return psycopg.connect(PG_DSN)
 
 
+def apply_schema(conn):
+    """Create or upgrade the tables (schema.sql is idempotent); data is kept."""
+    conn.execute(SCHEMA.read_text(encoding="utf-8"))
+    if not conn.autocommit:
+        conn.commit()
+
+
 def load(conn):
-    """Reload all business data from data/generated (idempotent)."""
+    """Reload all business data from data/generated (idempotent). Rules are kept."""
     rd = lambda n: json.loads((GEN / f"{n}.json").read_text(encoding="utf-8"))
     with conn.transaction():
         conn.execute("TRUNCATE decisions, waitlist, loans, books, members RESTART IDENTITY CASCADE")
@@ -34,54 +43,60 @@ def load(conn):
                 [(w["member_id"], w["book_id"], w["created_at"]) for w in rd("waitlist")])
 
 
-def trace(conn, member_id, book_id, lock=False):
-    """Every loan rule in the order they are applied, with whether it passed.
+def gather(conn, member_id, book_id, lock=False):
+    """The evidence of one decision, each value with its source id and row version.
 
-    Returns a list of {rule, ok, detail, outcome, reason}; `outcome`/`reason` is the answer if the rule fails.
+    Returns a JSON-serialisable dict; `member` / `book` are None when the id is unknown.
     """
     book = conn.execute(
-        "SELECT book_type, available FROM books WHERE id = %s" + (" FOR UPDATE" if lock else ""),
+        "SELECT id, version, book_type, available FROM books WHERE id = %s" + (" FOR UPDATE" if lock else ""),
         (book_id,)).fetchone()
     member = conn.execute(
-        "SELECT tier, max_loans, suspended FROM members WHERE id = %s", (member_id,)).fetchone()
-    if book is None or member is None:
-        raise LookupError("unknown member or book")
-    book_type, available = book
-    tier, max_loans, suspended = member
-    active = conn.execute(
-        "SELECT count(*), count(*) FILTER (WHERE book_id = %s) FROM loans "
-        "WHERE member_id = %s AND returned_at IS NULL", (book_id, member_id)).fetchone()
-    on_list = conn.execute(
-        "SELECT 1 FROM waitlist WHERE member_id = %s AND book_id = %s", (member_id, book_id)).fetchone()
-    return [
-        {"rule": "Member is not suspended", "ok": not suspended, "detail": "suspended" if suspended else "good standing",
-         "outcome": "reject", "reason": "member suspended"},
-        {"rule": "Member is below the loan limit", "ok": active[0] < max_loans,
-         "detail": f"{active[0]} of {max_loans} loans", "outcome": "reject", "reason": "member at max loans"},
-        {"rule": "Member does not already hold the book", "ok": active[1] == 0,
-         "detail": "holds a copy" if active[1] else "no copy held",
-         "outcome": "reject", "reason": "member already holds this book"},
-        {"rule": "Member is not already on the waitlist", "ok": not on_list,
-         "detail": "already waiting" if on_list else "not waiting",
-         "outcome": "reject", "reason": "member already on waitlist"},
-        {"rule": "Book type is allowed for the tier", "ok": not (book_type == "journal" and tier != "premium"),
-         "detail": f"{book_type}, {tier}", "outcome": "reject", "reason": "journals are premium only"},
-        {"rule": "A copy is available", "ok": available > 0, "detail": f"{available} free",
-         "outcome": "waitlist", "reason": "no copy available"},
-    ]
+        "SELECT id, version, tier, suspended FROM members WHERE id = %s", (member_id,)).fetchone()
+    inputs = {"member": None, "book": None}
+    if member:
+        inputs["member"] = dict(zip(("id", "version", "tier", "suspended"), member))
+    if book:
+        inputs["book"] = dict(zip(("id", "version", "book_type", "available"), book))
+    if member and book:
+        active, holds = conn.execute(
+            "SELECT count(*), count(*) FILTER (WHERE book_id = %s) FROM loans "
+            "WHERE member_id = %s AND returned_at IS NULL", (book_id, member_id)).fetchone()
+        inputs["active_loans"] = active
+        inputs["holds_book"] = holds > 0
+        inputs["on_waitlist"] = conn.execute(
+            "SELECT 1 FROM waitlist WHERE member_id = %s AND book_id = %s", (member_id, book_id)).fetchone() is not None
+    return inputs
 
 
-def _evaluate(conn, member_id, book_id, lock):
-    """Apply the loan rules (first failing rule wins). Returns (outcome, reason)."""
-    for r in trace(conn, member_id, book_id, lock):
-        if not r["ok"]:
-            return r["outcome"], r["reason"]
-    return "allow", "copy available"
+def _decide(conn, member_id, book_id, lock):
+    """Gather the evidence and apply the active rules. Returns a decision dict (nothing is written)."""
+    rs = rules.active(conn)
+    inputs = gather(conn, member_id, book_id, lock)
+    outcome, reason, rule_id = rules.decide(inputs, rs["params"])
+    return {"outcome": outcome, "reason": reason, "rule_id": rule_id, "rule_version": rs["version"],
+            "inputs": inputs, "params": rs["params"]}
+
+
+def trace(conn, member_id, book_id, lock=False):
+    """Every loan rule in the order they are applied, with whether it passed (see rules.evaluate)."""
+    d = _decide(conn, member_id, book_id, lock)
+    return rules.evaluate(d["inputs"], d["params"])
+
+
+def _record(conn, d, member_id, book_id, reason=None):
+    ok = d["inputs"]["member"] is not None and d["inputs"]["book"] is not None
+    return conn.execute(
+        "INSERT INTO decisions (member_id, book_id, requested_member, requested_book, outcome, reason, "
+        "rule_version, rule_id, inputs) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING id",
+        (member_id if ok else None, book_id if ok else None, member_id, book_id, d["outcome"],
+         reason or d["reason"], d["rule_version"], d["rule_id"], json.dumps(d["inputs"]))).fetchone()[0]
 
 
 def check(conn, member_id, book_id):
     """Read-only decision: what would borrow() answer right now? No locks, no writes."""
-    return _evaluate(conn, member_id, book_id, lock=False)
+    d = _decide(conn, member_id, book_id, lock=False)
+    return d["outcome"], d["reason"]
 
 
 def borrow(conn, member_id, book_id):
@@ -89,21 +104,40 @@ def borrow(conn, member_id, book_id):
 
     The book row is locked with SELECT ... FOR UPDATE, so two members taking
     the last copy are serialised: the first commits, the second sees available = 0.
-    The decision is stored in the same transaction as its effect.
+    The decision is stored in the same transaction as its effect, with the rule version and the
+    evidence it was based on.
     """
     with conn.transaction():
-        outcome, reason = _evaluate(conn, member_id, book_id, lock=True)
-        if outcome == "waitlist":
+        d = _decide(conn, member_id, book_id, lock=True)
+        if d["outcome"] == "waitlist":
             conn.execute("INSERT INTO waitlist (member_id, book_id) VALUES (%s,%s)", (member_id, book_id))
-        elif outcome == "allow":
+        elif d["outcome"] == "allow":
             conn.execute("UPDATE books SET available = available - 1 WHERE id = %s", (book_id,))
             conn.execute(
-                "INSERT INTO loans (member_id, book_id, due_at) VALUES (%s,%s, now() + interval '21 days')",
-                (member_id, book_id))
-        decision_id = conn.execute(
-            "INSERT INTO decisions (member_id, book_id, outcome, reason) VALUES (%s,%s,%s,%s) RETURNING id",
-            (member_id, book_id, outcome, reason)).fetchone()[0]
-    return outcome, reason, decision_id
+                "INSERT INTO loans (member_id, book_id, due_at) VALUES (%s,%s, now() + make_interval(days => %s))",
+                (member_id, book_id, d["params"]["loan_days"]))
+        decision_id = _record(conn, d, member_id, book_id)
+    return d["outcome"], d["reason"], decision_id
+
+
+def explain_decision(conn, decision_id):
+    """Explain a stored decision from its own rows: the stored evidence is re-evaluated with the
+    rule version stored with it (not the active one). `replay_ok` says the outcome is reproduced."""
+    row = conn.execute(
+        "SELECT id, decided_at, requested_member, requested_book, outcome, reason, rule_version, rule_id, inputs "
+        "FROM decisions WHERE id = %s", (decision_id,)).fetchone()
+    if row is None:
+        raise LookupError("unknown decision")
+    dec = dict(zip(("id", "decided_at", "member", "book", "outcome", "reason", "rule_version", "rule_id", "inputs"), row))
+    rs = rules.get(conn, dec["rule_version"])
+    active = rules.active(conn)["version"]
+    items = rules.evaluate(dec["inputs"], rs["params"])
+    if dec["reason"] == "promoted from waitlist":  # the stored reason is the promotion, the rules said allow
+        replay = "allow"
+    else:
+        replay = next((i["outcome"] for i in items if not i["ok"]), "allow")
+    return {"decision": dec, "rules": rs, "active_version": active, "trace": items,
+            "replay_outcome": replay, "replay_ok": replay == dec["outcome"]}
 
 
 class _Skip(Exception):
@@ -129,15 +163,14 @@ def return_book(conn, member_id, book_id):
             try:
                 with conn.transaction():  # savepoint: undone if this member may not borrow
                     conn.execute("DELETE FROM waitlist WHERE id = %s", (wid,))
-                    outcome, _ = _evaluate(conn, wm, book_id, lock=True)
-                    if outcome != "allow":
+                    d = _decide(conn, wm, book_id, lock=True)
+                    if d["outcome"] != "allow":
                         raise _Skip
                     conn.execute("UPDATE books SET available = available - 1 WHERE id = %s", (book_id,))
                     conn.execute("INSERT INTO loans (member_id, book_id, due_at) "
-                                 "VALUES (%s,%s, now() + interval '21 days')", (wm, book_id))
-                    did = conn.execute(
-                        "INSERT INTO decisions (member_id, book_id, outcome, reason) "
-                        "VALUES (%s,%s,'allow','promoted from waitlist') RETURNING id", (wm, book_id)).fetchone()[0]
+                                 "VALUES (%s,%s, now() + make_interval(days => %s))",
+                                 (wm, book_id, d["params"]["loan_days"]))
+                    did = _record(conn, d, wm, book_id, reason="promoted from waitlist")
             except _Skip:
                 continue
             return {"promoted": wm, "decision_id": did}
@@ -214,6 +247,8 @@ def member_profile(conn, member_id):
         "SELECT l.book_id, b.title, l.loaned_at::date, l.returned_at::date FROM loans l "
         "JOIN books b ON b.id = l.book_id WHERE l.member_id = %s AND l.returned_at IS NOT NULL "
         "ORDER BY l.returned_at DESC LIMIT 15", (member_id,)).fetchall()
+    m = list(m)
+    m[3] = rules.active(conn)["params"]["max_loans"].get(m[2], m[3])  # the active rules set the limit
     return {"member": dict(zip(("id", "name", "tier", "max_loans", "suspended"), m)),
             "loans": [list(r) for r in loans], "waitlist": [list(r) for r in waiting],
             "history": [list(r) for r in history]}
@@ -227,5 +262,6 @@ def book_waitlist(conn, book_id):
 
 def recent_decisions(conn, limit=30):
     return [list(r) for r in conn.execute(
-        "SELECT d.id, d.decided_at, d.member_id, d.book_id, b.title, d.outcome, d.reason FROM decisions d "
-        "JOIN books b ON b.id = d.book_id ORDER BY d.id DESC LIMIT %s", (limit,))]
+        "SELECT d.id, d.decided_at, d.requested_member, d.requested_book, coalesce(b.title, '?'), d.outcome, "
+        "d.reason, d.rule_version FROM decisions d LEFT JOIN books b ON b.id = d.book_id "
+        "ORDER BY d.id DESC LIMIT %s", (limit,))]

@@ -20,8 +20,7 @@ def test_databases():
         if not admin.execute("SELECT 1 FROM pg_database WHERE datname='shelfsense_test'").fetchone():
             admin.execute("CREATE DATABASE shelfsense_test")
     with psycopg.connect(config.PG_DSN) as c:
-        if not c.execute("SELECT to_regclass('public.books')").fetchone()[0]:
-            c.execute(SCHEMA.read_text(encoding="utf-8"))
+        c.execute(SCHEMA.read_text(encoding="utf-8"))   # idempotent: creates or upgrades the test tables
     from shelfsense.stores import mongo, postgres
     with postgres.connect() as c:
         postgres.load(c)

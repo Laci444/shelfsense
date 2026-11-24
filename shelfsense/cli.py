@@ -68,7 +68,7 @@ def advise(member: str, book: str):
         adv.close()
     if _state["json"]:
         return _emit(out)
-    colour = {"allow": "green", "waitlist": "yellow", "reject": "red"}[out["outcome"]]
+    colour = {"allow": "green", "waitlist": "yellow", "reject": "red", "needs_info": "cyan"}[out["outcome"]]
     console.print(f"[bold {colour}]{out['outcome'].upper()}[/]: {out['reason']}"
                   + (" [dim](cached)[/dim]" if out["from_cache"] else ""))
     if out.get("alternatives"):
@@ -90,6 +90,54 @@ def borrow(member: str, book: str):
     console.print(f"{out['outcome'].upper()}: {out['reason']} (decision #{out['decision_id']})")
 
 
+@app.command()
+def explain(first: str = typer.Argument(..., help="a decision number, or a member id (then give the book too)"),
+            book: Optional[str] = typer.Argument(None, help="book id: show the rules for this member and book now")):
+    """Explain a stored decision from its own rows (rule version, evidence), or a live member/book check."""
+    adv = _advisor()
+    try:
+        if book is not None:
+            trace = adv.explain(first, book)
+            if _state["json"]:
+                return _emit(trace)
+            _rule_table(trace, f"Rules now (v{adv.active_rules()['version']}) for {first} / {book}")
+            return
+        if not first.isdigit():
+            _fail("give a decision number, or a member and a book")
+            raise typer.Exit(1)
+        out = adv.explain_decision(int(first))
+    except LookupError as e:
+        _fail(e)
+        raise typer.Exit(1)
+    finally:
+        adv.close()
+    if _state["json"]:
+        return _emit(out)
+    d, r = out["decision"], out["rules"]
+    colour = {"allow": "green", "waitlist": "yellow", "reject": "red", "needs_info": "cyan"}[d["outcome"]]
+    console.print(f"Decision #{d['id']} at {str(d['decided_at'])[:19]}: {d['member']} -> {d['book']}\n"
+                  f"[bold {colour}]{d['outcome'].upper()}[/]: {d['reason']}   (deciding rule {d['rule_id']}, "
+                  f"rules version {d['rule_version']}, active version now {out['active_version']})")
+    console.print(f"Rules v{r['version']} valid {str(r['valid_from'])[:19]} - "
+                  f"{str(r['valid_to'])[:19] if r['valid_to'] else 'now'}: {json.dumps(r['params'])}")
+    console.print(f"Stored evidence: {json.dumps(d['inputs'])}")
+    _rule_table(out["trace"], f"Stored evidence re-evaluated with rules v{r['version']}")
+    console.print("Replay reproduces the stored outcome." if out["replay_ok"]
+                  else f"[red]Replay gives {out['replay_outcome']}, stored {d['outcome']}[/red]")
+
+
+def _rule_table(items, title):
+    t = Table(title=title)
+    for c in ("rule", "check", "result", "detail"):
+        t.add_column(c)
+    failed = False
+    for i in items:
+        state = "[dim]not reached[/dim]" if failed else "[green]pass[/green]" if i["ok"] else f"[red]FAIL -> {i['outcome']}[/red]"
+        failed = failed or not i["ok"]
+        t.add_row(i["id"], i["rule"], state, "" if state.startswith("[dim]") else i["detail"])
+    console.print(t)
+
+
 @app.command(name="return")
 def return_(member: str, book: str):
     """Return a loan; the first eligible waitlisted member gets the copy. Updates Neo4j too."""
@@ -104,6 +152,70 @@ def return_(member: str, book: str):
         return _emit(out)
     console.print(f"returned; copy given to {out['promoted']}" if out["promoted"]
                   else "returned; nobody on the waitlist could take it")
+
+
+rules_app = typer.Typer(help="Versioned loan rules: list, show, publish a new version.", no_args_is_help=True)
+app.add_typer(rules_app, name="rules")
+
+
+@rules_app.command("list")
+def rules_list():
+    """Every rule version with its validity period."""
+    adv = _advisor()
+    try:
+        rows = adv.rules_history()
+    finally:
+        adv.close()
+    if _state["json"]:
+        return _emit(rows)
+    t = Table(title="Rule versions")
+    for c in ("version", "valid from", "valid to", "params", "note"):
+        t.add_column(c)
+    for r in rows:
+        t.add_row(str(r["version"]), str(r["valid_from"])[:19], str(r["valid_to"])[:19] if r["valid_to"] else "active",
+                  json.dumps(r["params"]), r["note"] or "")
+    console.print(t)
+
+
+@rules_app.command("show")
+def rules_show(version: Optional[int] = typer.Argument(None, help="default: the active version")):
+    """The parameters of one rule version."""
+    adv = _advisor()
+    try:
+        r = adv.rules_history()
+        r = next((x for x in r if x["version"] == version), None) if version else adv.active_rules()
+    finally:
+        adv.close()
+    if r is None:
+        _fail("unknown rules version")
+        raise typer.Exit(1)
+    _emit(r)
+
+
+@rules_app.command("publish")
+def rules_publish(loan_days: Optional[int] = typer.Option(None, help="loan period in days"),
+                  standard_max: Optional[int] = typer.Option(None, help="loan limit of standard members"),
+                  premium_max: Optional[int] = typer.Option(None, help="loan limit of premium members"),
+                  note: Optional[str] = typer.Option(None, help="why the rules change")):
+    """Publish a new rule version (the options you leave out keep their value). Cached decisions are dropped."""
+    changes = {}
+    if loan_days is not None:
+        changes["loan_days"] = loan_days
+    limits = {t: v for t, v in (("standard", standard_max), ("premium", premium_max)) if v is not None}
+    if limits:
+        changes["max_loans"] = limits
+    if not changes:
+        _fail("give at least one of --loan-days, --standard-max, --premium-max")
+        raise typer.Exit(1)
+    adv = _advisor()
+    try:
+        v = adv.publish_rules(changes, note)
+    except ValueError as e:
+        _fail(e)
+        raise typer.Exit(1)
+    finally:
+        adv.close()
+    console.print(f"published rules version {v}")
 
 
 book_app = typer.Typer(help="Add, edit or delete books; Neo4j and Qdrant follow immediately.", no_args_is_help=True)
@@ -223,6 +335,15 @@ def up():
 def down():
     """Stop the containers (data volumes are kept)."""
     _compose("down")
+
+
+@db_app.command()
+def schema():
+    """Create or upgrade the PostgreSQL tables (idempotent; keeps the data)."""
+    from shelfsense.stores import postgres
+    with postgres.connect() as c:
+        postgres.apply_schema(c)
+    console.print("schema applied")
 
 
 @db_app.command()

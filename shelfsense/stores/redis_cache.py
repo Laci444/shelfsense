@@ -39,6 +39,14 @@ def invalidate_book(r, book_id):
     return n
 
 
+def invalidate_all_decisions(r):
+    """Delete every cached decision (used when the rules change: they were made with the old version)."""
+    n = 0
+    for k in r.scan_iter("decision:*"):
+        n += r.delete(k)
+    return n
+
+
 def _list_key(member_id):
     return f"readinglist:{member_id}"
 
