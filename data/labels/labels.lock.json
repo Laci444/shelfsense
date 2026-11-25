@@ -1,0 +1,12 @@
+{
+ "frozen_on": "2026-11-25",
+ "note": "frozen before tuning hybrid/pgvector parameters",
+ "sha256": {
+  "interest_queries.json": "e4859db0050e5781f9301e23e553be22549510f70ca24556f18a8d8e6c869f95",
+  "loan_cases.json": "b22fb90a58672795cafc8e54d214994760dd53a59dcf17fed0584009dfb86e82"
+ },
+ "counts": {
+  "interest_queries": 20,
+  "loan_cases": 15
+ }
+}

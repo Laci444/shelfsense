@@ -37,6 +37,12 @@ QUERIES = [
 
 
 def main():
+    import sys
+
+    from shelfsense import labels
+    if labels.LOCK.exists() and "--force" not in sys.argv:
+        sys.exit("labels are frozen (data/labels/labels.lock.json); rebuilding them would invalidate every "
+                 "measurement. Use --force only if you really mean to start over, then re-freeze.")
     books = json.loads((DATA_DIR / "raw" / "books.json").read_text(encoding="utf-8"))
     out = []
     for i, (q, genres, rx) in enumerate(QUERIES, 1):

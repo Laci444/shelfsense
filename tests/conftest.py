@@ -25,5 +25,15 @@ def test_databases():
     with postgres.connect() as c:
         postgres.load(c)
     db = mongo.connect()
-    mongo.load(db)
     yield
+    from shelfsense.stores import neo4j_graph
+    with psycopg.connect(admin_dsn) as real:   # the real loans of the demo members are the truth to restore
+        keep = [(r[0], r[1]) for r in real.execute(
+            "SELECT DISTINCT member_id, book_id FROM loans WHERE member_id LIKE 'S\\_%'")]
+    drv = neo4j_graph.connect()
+    with drv.session() as s:   # the tests use the real Neo4j; reset the demo members' edges to the real data
+        s.run("MATCH (m:Member)-[x:BORROWED]->() WHERE m.source_id STARTS WITH 'S_' DELETE x")
+        for m, b in keep:
+            s.run("MERGE (m:Member {source_id: $m}) WITH m MATCH (b:Book {source_id: $b}) MERGE (m)-[:BORROWED]->(b)",
+                  m=m, b=b)
+    drv.close()

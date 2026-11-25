@@ -369,6 +369,26 @@ def pgvector():
 
 
 @db_app.command()
+def check():
+    """Validate the data: sources against their own rules, derived stores against the sources."""
+    from rich.table import Table
+
+    from shelfsense import check as chk
+    res = chk.run()
+    if _state["json"]:
+        _emit([{"check": n, "ok": ok, "detail": d} for n, ok, d in res])
+    else:
+        t = Table(title=f"Data checks ({sum(ok for _, ok, _ in res)}/{len(res)} passed)")
+        for c in ("check", "result", "detail"):
+            t.add_column(c)
+        for n, ok, d in res:
+            t.add_row(n, "[green]ok[/]" if ok else "[red]FAIL[/]", d)
+        console.print(t)
+    if not all(ok for _, ok, _ in res):
+        raise typer.Exit(1)
+
+
+@db_app.command()
 def derived(adopt: bool = typer.Option(False, "--adopt", help="declare every store current (right after a fresh sync)")):
     """Derived-state registry: per store, how many books are current / stale / missing."""
     from rich.table import Table
@@ -465,6 +485,18 @@ def compare():
     """pgvector vs Qdrant: recall, MRR, ANN recall, filtered search, latency, index size."""
     from eval import eval_compare
     eval_compare.main()
+
+
+@eval_app.command("labels")
+def labels_cmd(freeze: bool = typer.Option(False, "--freeze", help="store the checksums of the label files")):
+    """Show whether the evaluation labels are frozen and unchanged (or freeze them)."""
+    from shelfsense import labels as lb
+    if freeze:
+        console.print(lb.freeze("frozen before tuning hybrid/pgvector parameters"))
+    v = lb.verify()
+    console.print(v)
+    if not v["ok"]:
+        raise typer.Exit(1)
 
 
 @eval_app.command()

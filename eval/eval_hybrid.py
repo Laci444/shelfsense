@@ -57,6 +57,8 @@ def run():
 
 def main():
     out = run()
+    from shelfsense import labels
+    print(labels.banner())
     print(f"{out['n_queries']} labelled queries; K={retrieval.K} reciprocal rank fusion\n")
     print(f"{'mode':<9}{'recall@5':>10}{'MRR':>8}{'median ms':>11}")
     for m, r in out["modes"].items():
