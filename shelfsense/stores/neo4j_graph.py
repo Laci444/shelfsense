@@ -21,15 +21,15 @@ def rebuild(driver, books, members, loans):
         s.run("""
             UNWIND $rows AS r
             MERGE (b:Book {source_id: r.id})
-              SET b.title = r.title, b.refreshed_at = datetime()
+              SET b.title = r.title, b.refreshed_at = datetime(), b.source_version = r.version
             MERGE (g:Genre {name: r.genre})
             MERGE (b)-[:IN_GENRE]->(g)
             WITH b, r
             UNWIND r.authors AS an
             MERGE (a:Author {name: an})
             MERGE (b)-[:BY]->(a)
-        """, rows=[{"id": b["id"], "title": b["title"], "genre": b["genre"], "authors": b["authors"]}
-                   for b in books]).consume()
+        """, rows=[{"id": b["id"], "title": b["title"], "genre": b["genre"], "authors": b["authors"],
+                    "version": b.get("version")} for b in books]).consume()
         s.run("""
             UNWIND $rows AS r
             MERGE (m:Member {source_id: r.id}) SET m.refreshed_at = datetime()
@@ -47,11 +47,13 @@ def upsert_book(driver, b):
     with driver.session() as s:
         s.run("MATCH (:Book {source_id: $id})-[r:IN_GENRE|BY]->() DELETE r", id=b["id"]).consume()
         s.run("""
-            MERGE (b:Book {source_id: $id}) SET b.title = $title, b.refreshed_at = datetime()
+            MERGE (b:Book {source_id: $id}) SET b.title = $title, b.refreshed_at = datetime(),
+                                                b.source_version = $version
             MERGE (g:Genre {name: $genre}) MERGE (b)-[:IN_GENRE]->(g)
             WITH b UNWIND $authors AS an
             MERGE (a:Author {name: an}) MERGE (b)-[:BY]->(a)
-        """, id=b["id"], title=b["title"], genre=b["genre"], authors=b["authors"]).consume()
+        """, id=b["id"], title=b["title"], genre=b["genre"], authors=b["authors"],
+              version=b.get("version")).consume()
         _drop_orphans(s)
 
 

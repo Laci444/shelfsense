@@ -269,11 +269,12 @@ def book_delete(id: str):
 
 @app.command()
 def recommend(text: str, genre: Optional[str] = None,
+              mode: str = typer.Option("vector", help="vector | keyword | hybrid"),
               n: int = typer.Option(5, "--n", "-n", help="number of results")):
-    """Free-text search in Qdrant, limited to books with a free copy."""
+    """Free-text search (Qdrant vectors, PostgreSQL full text, or both fused), only books with a free copy."""
     adv = _advisor()
     try:
-        out = adv.recommend(text, genre=genre, limit=n)
+        out = adv.recommend(text, genre=genre, limit=n, mode=mode)
     finally:
         adv.close()
     _emit(out) if _state["json"] else _books_table(out, "Recommendations")
@@ -363,8 +364,39 @@ def sync():
 @db_app.command()
 def pgvector():
     """Fill the pgvector table from the vectors already in Qdrant (no re-embedding, about a minute)."""
-    from shelfsense.sync import sync_pgvector_from_qdrant
-    console.print(sync_pgvector_from_qdrant())
+    from shelfsense.sync import sync_fts, sync_pgvector_from_qdrant
+    console.print({"pgvector": sync_pgvector_from_qdrant(), "fts": sync_fts()})
+
+
+@db_app.command()
+def derived(adopt: bool = typer.Option(False, "--adopt", help="declare every store current (right after a fresh sync)")):
+    """Derived-state registry: per store, how many books are current / stale / missing."""
+    from rich.table import Table
+
+    from shelfsense import derived as reg
+    from shelfsense.stores import postgres as pg
+    with pg.connect() as conn:
+        conn.autocommit = True
+        if adopt:
+            reg.adopt(conn)
+        st = reg.status(conn)
+    t = Table(title="Derived state vs PostgreSQL books.version")
+    for c in ("store", "current", "stale", "missing", "orphans", "last refresh"):
+        t.add_column(c)
+    for s, r in st.items():
+        t.add_row(s, str(r["current"]), str(r["stale"]), str(r["missing"]), str(r["orphans"]),
+                  str(r["last_refresh"] or "-")[:19])
+    _emit(st) if _state["json"] else console.print(t)
+
+
+@db_app.command()
+def refresh(store: Optional[str] = typer.Option(None, help="neo4j | qdrant | pgvector | fts (default: all)")):
+    """Re-index only the stale/missing books (and drop orphans) in the derived stores."""
+    adv = _advisor()
+    try:
+        console.print(adv.refresh([store] if store else None))
+    finally:
+        adv.close()
 
 
 @db_app.command()
@@ -433,6 +465,20 @@ def compare():
     """pgvector vs Qdrant: recall, MRR, ANN recall, filtered search, latency, index size."""
     from eval import eval_compare
     eval_compare.main()
+
+
+@eval_app.command()
+def hybrid():
+    """Vector vs keyword vs hybrid search on the labelled queries, plus one explained failure."""
+    from eval import eval_hybrid
+    eval_hybrid.main()
+
+
+@eval_app.command("stale")
+def stale_demo():
+    """Derived data going stale after a missed propagation, then repaired by `db refresh`."""
+    from eval import demo_stale_derived
+    demo_stale_derived.run()
 
 
 @eval_app.command("rules")

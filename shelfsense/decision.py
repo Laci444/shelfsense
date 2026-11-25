@@ -16,9 +16,10 @@ If a derived store is unreachable the source change still stands; the error is k
 import random
 import time
 
-from shelfsense import embeddings, rules
+from shelfsense import derived, embeddings, retrieval, rules
 from shelfsense.config import PROPAGATE
-from shelfsense.stores import mongo, neo4j_graph, pgvector_store, postgres, qdrant_store, redis_cache
+from shelfsense.stores import (fts_store, mongo, neo4j_graph, pgvector_store, postgres, qdrant_store,
+                               redis_cache)
 
 
 class Advisor:
@@ -35,11 +36,18 @@ class Advisor:
     def _derive(self, label, fn):
         """Run one update of a derived store. It must never undo the committed source change."""
         if not self.propagate:
-            return
+            return False
         try:
             fn()
+            return True
         except Exception as e:  # noqa: BLE001
             self.derived_errors.append(f"{label}: {e}")
+            return False
+
+    def _mark(self, store, book_id, ok):
+        """Registry entry only after a successful update: a failed or skipped one stays visible as stale."""
+        if ok:
+            derived.mark(self.pg, store, book_id)
 
     # --- book catalogue (PostgreSQL + MongoDB, then Neo4j + Qdrant) ---------------------------
     def add_book(self, book, copies=1):
@@ -64,11 +72,14 @@ class Advisor:
             raise LookupError("unknown book")
         if "year" in fields:
             fields["year"] = int(fields["year"])
-        postgres.update_book(self.pg, book_id, fields)
-        self.mongo["books"].update_one({"_id": book_id}, {"$set": fields})
-        redis_cache.invalidate_book(self.redis, book_id)
         text_changed = any(fields.get(k, before[k]) != before[k] for k in ("title", "description"))
         meta_changed = any(fields.get(k, before[k]) != before[k] for k in ("genre", "year", "authors"))
+        postgres.update_book(self.pg, book_id, fields)
+        self.mongo["books"].update_one({"_id": book_id}, {"$set": fields})
+        if (text_changed or meta_changed or "subjects" in fields) and \
+                not any(fields.get(c, before[c]) != before[c] for c in ("title", "genre", "year")):
+            postgres.touch_book(self.pg, book_id)  # Mongo-only change: PostgreSQL's version must still move
+        redis_cache.invalidate_book(self.redis, book_id)
         if text_changed or meta_changed:
             self._index_book(book_id, re_embed=text_changed)
 
@@ -79,18 +90,62 @@ class Advisor:
         self._derive("Neo4j", lambda: neo4j_graph.delete_book(self.neo, book_id))
         self._derive("Qdrant", lambda: qdrant_store.delete_book(self.qdrant, book_id))
         self._derive("pgvector", lambda: pgvector_store.delete_book(self.pg, book_id))
+        self._derive("FTS", lambda: fts_store.delete_book(self.pg, book_id))
+        for s in derived.STORES:
+            derived.forget(self.pg, s, book_id)
 
-    def _index_book(self, book_id, re_embed=True):
-        """Push one book from MongoDB to Neo4j and Qdrant (only this book is embedded)."""
+    def _index_book(self, book_id, re_embed=True, stores=None):
+        """Push one book from MongoDB to the derived stores (only this book is embedded).
+
+        `stores` limits the work (used by refresh); the default is everything that the change affects."""
         doc = self.mongo["books"].find_one({"_id": book_id})
         doc["id"] = doc.pop("_id")
-        self._derive("Neo4j", lambda: neo4j_graph.upsert_book(self.neo, doc))
+        doc["version"] = postgres.get_version(self.pg, book_id)
+        want = set(stores or derived.STORES)
+        if "neo4j" in want:
+            self._mark("neo4j", book_id, self._derive("Neo4j", lambda: neo4j_graph.upsert_book(self.neo, doc)))
         if re_embed:
-            vec = embeddings.embed([embeddings.book_text(doc)])[0] if self.propagate else None
-            self._derive("Qdrant", lambda: qdrant_store.upsert_book(self.qdrant, doc, vec))
-            self._derive("pgvector", lambda: pgvector_store.upsert_book(self.pg, book_id, vec))
+            text = embeddings.book_text(doc)
+            if want & {"qdrant", "pgvector"}:
+                vec = embeddings.embed([text])[0] if self.propagate else None
+                if "qdrant" in want:
+                    self._mark("qdrant", book_id,
+                               self._derive("Qdrant", lambda: qdrant_store.upsert_book(self.qdrant, doc, vec)))
+                if "pgvector" in want:
+                    self._mark("pgvector", book_id,
+                               self._derive("pgvector", lambda: pgvector_store.upsert_book(self.pg, book_id, vec)))
+            if "fts" in want:
+                self._mark("fts", book_id, self._derive("FTS", lambda: fts_store.upsert_book(self.pg, book_id, text)))
         else:
-            self._derive("Qdrant", lambda: qdrant_store.update_payload(self.qdrant, doc))
+            self._mark("qdrant", book_id,
+                       self._derive("Qdrant", lambda: qdrant_store.update_payload(self.qdrant, doc)))
+            # pgvector and FTS hold no payload (genre/year are joined live), so they only absorb the version
+            if self.propagate:
+                for s in ("pgvector", "fts"):
+                    derived.touch_if_tracked(self.pg, s, book_id)
+
+    def refresh(self, stores=None):
+        """Bring stale/missing books up to date and drop orphans, per store. Returns counts and seconds."""
+        t0 = time.perf_counter()
+        stores = list(stores or derived.STORES)
+        todo = {s: derived.pending(self.pg, s) for s in stores}
+        orphan = {s: derived.orphans(self.pg, s) for s in stores}
+        was_on, self.propagate = self.propagate, True
+        try:
+            for bid in sorted({i for ids in todo.values() for i in ids}):
+                self._index_book(bid, re_embed=True, stores=[s for s in stores if bid in todo[s]])
+            drop = {"neo4j": lambda i: neo4j_graph.delete_book(self.neo, i),
+                    "qdrant": lambda i: qdrant_store.delete_book(self.qdrant, i),
+                    "pgvector": lambda i: pgvector_store.delete_book(self.pg, i),
+                    "fts": lambda i: fts_store.delete_book(self.pg, i)}
+            for s in stores:
+                for bid in orphan[s]:
+                    if self._derive(s, lambda: drop[s](bid)):
+                        derived.forget(self.pg, s, bid)
+        finally:
+            self.propagate = was_on
+        return {"refreshed": {s: len(todo[s]) for s in stores}, "orphans_removed": {s: len(orphan[s]) for s in stores},
+                "seconds": round(time.perf_counter() - t0, 2), "errors": list(self.derived_errors)}
 
     def close(self):
         self.pg.close()
@@ -268,9 +323,9 @@ class Advisor:
             result["alternatives"] = self.suggestions(book_id, limit)
         return result
 
-    def recommend(self, text, genre=None, limit=5):
-        vec = embeddings.embed([text])[0]
-        hits = qdrant_store.search(self.qdrant, vec, limit=limit * 3, genre=genre)
+    def recommend(self, text, genre=None, limit=5, mode="vector"):
+        """mode: vector (Qdrant), keyword (PostgreSQL full text) or hybrid (rank fusion of both)."""
+        hits = retrieval.search(self.qdrant, self.pg, text, mode=mode, limit=limit * 3, genre=genre)
         ids = [h[0] for h in hits]
         free = self._details(self._available(ids))
         return [{"book_id": i, **free[i]} for i in ids if i in free][:limit]

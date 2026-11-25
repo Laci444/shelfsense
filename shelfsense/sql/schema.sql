@@ -51,7 +51,20 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS members_version ON members;
 CREATE TRIGGER members_version BEFORE UPDATE ON members FOR EACH ROW EXECUTE FUNCTION bump_version();
 DROP TRIGGER IF EXISTS books_version ON books;
-CREATE TRIGGER books_version BEFORE UPDATE ON books FOR EACH ROW EXECUTE FUNCTION bump_version();
+-- A book's version counts content changes only (title, genre, year, type, or an explicit touch for
+-- MongoDB-only edits); borrowing and returning change `available` and must not make derived stores stale.
+CREATE OR REPLACE FUNCTION bump_book_version() RETURNS trigger AS $$
+BEGIN
+    IF NEW.title IS DISTINCT FROM OLD.title OR NEW.genre IS DISTINCT FROM OLD.genre
+       OR NEW.year IS DISTINCT FROM OLD.year OR NEW.book_type IS DISTINCT FROM OLD.book_type
+       OR NEW.updated_at IS DISTINCT FROM OLD.updated_at THEN
+        NEW.version := OLD.version + 1;
+        NEW.updated_at := now();
+    END IF;
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER books_version BEFORE UPDATE ON books FOR EACH ROW EXECUTE FUNCTION bump_book_version();
 
 CREATE TABLE IF NOT EXISTS loans (
     id          SERIAL PRIMARY KEY,
@@ -106,4 +119,22 @@ CREATE TABLE IF NOT EXISTS book_vectors (
     book_id     TEXT PRIMARY KEY,
     embedding   vector(384) NOT NULL,
     embedded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Full-text search (derived from the MongoDB title + description); the second half of hybrid search.
+CREATE TABLE IF NOT EXISTS book_fts (
+    book_id TEXT PRIMARY KEY,
+    body    TEXT NOT NULL,
+    doc     tsvector GENERATED ALWAYS AS (to_tsvector('english', body)) STORED
+);
+CREATE INDEX IF NOT EXISTS book_fts_doc ON book_fts USING gin (doc);
+
+-- Registry of derived data: which version of which source row each derived store last absorbed, and when.
+-- A book is stale in a store when this row is missing or its version differs from books.version.
+CREATE TABLE IF NOT EXISTS derived_state (
+    store          TEXT NOT NULL CHECK (store IN ('neo4j', 'qdrant', 'pgvector', 'fts')),
+    source_id      TEXT NOT NULL,
+    source_version INT NOT NULL,
+    refreshed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (store, source_id)
 );

@@ -36,13 +36,14 @@ def rebuild(client, books, vectors, hnsw_m=16, hnsw_ef_construct=100):
     client.upload_points(COLLECTION, [
         models.PointStruct(id=point_id(b["id"]), vector=v.tolist(),
                            payload={"source_id": b["id"], "title": b["title"], "genre": b["genre"],
-                                    "year": int(b["year"]), "refreshed_at": now})
+                                    "year": int(b["year"]), "refreshed_at": now,
+                                    "source_version": b.get("version")})
         for b, v in zip(books, vectors)], batch_size=128, wait=True)
 
 
 def _payload(b):
     return {"source_id": b["id"], "title": b["title"], "genre": b["genre"], "year": int(b["year"]),
-            "refreshed_at": time.time()}
+            "refreshed_at": time.time(), "source_version": b.get("version")}
 
 
 def upsert_book(client, b, vector):

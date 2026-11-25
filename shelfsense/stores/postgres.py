@@ -199,6 +199,17 @@ def update_book(conn, book_id, fields):
         raise LookupError("unknown book")
 
 
+def touch_book(conn, book_id):
+    """A MongoDB-only edit (description, authors, subjects) still changes the book: bump its version."""
+    if not conn.execute("UPDATE books SET updated_at = clock_timestamp() WHERE id = %s", (book_id,)).rowcount:
+        raise LookupError("unknown book")
+
+
+def get_version(conn, book_id):
+    r = conn.execute("SELECT version FROM books WHERE id = %s", (book_id,)).fetchone()
+    return r[0] if r else None
+
+
 def delete_book(conn, book_id):
     """Refuses while copies are on loan; otherwise removes the book with its history."""
     with conn.transaction():
