@@ -361,6 +361,13 @@ def sync():
 
 
 @db_app.command()
+def pgvector():
+    """Fill the pgvector table from the vectors already in Qdrant (no re-embedding, about a minute)."""
+    from shelfsense.sync import sync_pgvector_from_qdrant
+    console.print(sync_pgvector_from_qdrant())
+
+
+@db_app.command()
 def status():
     """Row/document/vector counts of every store."""
     from eval.run_all import store_counts
@@ -419,6 +426,20 @@ def vectors():
     """Qdrant recall/MRR, ANN recall and filtered search."""
     from eval import eval_vectors
     eval_vectors.main()
+
+
+@eval_app.command()
+def compare():
+    """pgvector vs Qdrant: recall, MRR, ANN recall, filtered search, latency, index size."""
+    from eval import eval_compare
+    eval_compare.main()
+
+
+@eval_app.command("rules")
+def rules_demo():
+    """Rule version demo: the same request before/after publishing v2, old decision still explained."""
+    from eval import demo_rules
+    demo_rules.run()
 
 
 @eval_app.command()

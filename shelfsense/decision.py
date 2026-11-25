@@ -18,7 +18,7 @@ import time
 
 from shelfsense import embeddings, rules
 from shelfsense.config import PROPAGATE
-from shelfsense.stores import mongo, neo4j_graph, postgres, qdrant_store, redis_cache
+from shelfsense.stores import mongo, neo4j_graph, pgvector_store, postgres, qdrant_store, redis_cache
 
 
 class Advisor:
@@ -78,6 +78,7 @@ class Advisor:
         redis_cache.invalidate_book(self.redis, book_id)
         self._derive("Neo4j", lambda: neo4j_graph.delete_book(self.neo, book_id))
         self._derive("Qdrant", lambda: qdrant_store.delete_book(self.qdrant, book_id))
+        self._derive("pgvector", lambda: pgvector_store.delete_book(self.pg, book_id))
 
     def _index_book(self, book_id, re_embed=True):
         """Push one book from MongoDB to Neo4j and Qdrant (only this book is embedded)."""
@@ -85,8 +86,9 @@ class Advisor:
         doc["id"] = doc.pop("_id")
         self._derive("Neo4j", lambda: neo4j_graph.upsert_book(self.neo, doc))
         if re_embed:
-            self._derive("Qdrant", lambda: qdrant_store.upsert_book(
-                self.qdrant, doc, embeddings.embed([embeddings.book_text(doc)])[0]))
+            vec = embeddings.embed([embeddings.book_text(doc)])[0] if self.propagate else None
+            self._derive("Qdrant", lambda: qdrant_store.upsert_book(self.qdrant, doc, vec))
+            self._derive("pgvector", lambda: pgvector_store.upsert_book(self.pg, book_id, vec))
         else:
             self._derive("Qdrant", lambda: qdrant_store.update_payload(self.qdrant, doc))
 

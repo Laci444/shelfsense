@@ -114,5 +114,13 @@ def decide(inputs, params):
     return "allow", "copy available", "r6_available"
 
 
+def reset_to_initial(conn):
+    """Demos and tests only: drop every version above 1 (and the decisions made with them), reopen v1."""
+    with conn.transaction():
+        conn.execute("DELETE FROM decisions WHERE rule_version > 1")
+        conn.execute("DELETE FROM rules WHERE version > 1")
+        conn.execute("UPDATE rules SET valid_to = NULL WHERE version = 1")
+
+
 def _item(rid, rule, ok, detail, outcome, reason):
     return {"id": rid, "rule": rule, "ok": ok, "detail": detail, "outcome": outcome, "reason": reason}

@@ -7,7 +7,7 @@ Usage: python -m shelfsense.sync
 import time
 
 from shelfsense import embeddings
-from shelfsense.stores import mongo, neo4j_graph, postgres, qdrant_store, redis_cache
+from shelfsense.stores import mongo, neo4j_graph, pgvector_store, postgres, qdrant_store, redis_cache
 
 
 def sync_graph():
@@ -22,6 +22,21 @@ def sync_graph():
     driver = neo4j_graph.connect()
     neo4j_graph.rebuild(driver, books, members, loans)
     driver.close()
+
+
+def sync_pgvector_from_qdrant():
+    """Fill pgvector with the vectors Qdrant already holds (no re-embedding): same vectors in both stores."""
+    q = qdrant_store.connect()
+    ids, vecs, offset = [], [], None
+    while True:
+        pts, offset = q.scroll(qdrant_store.COLLECTION, limit=1000, offset=offset, with_payload=["source_id"],
+                               with_vectors=True)
+        for p in pts:
+            ids.append(p.payload["source_id"]); vecs.append(p.vector)
+        if offset is None:
+            break
+    with postgres.connect() as conn:
+        return pgvector_store.rebuild(conn, ids, vecs)
 
 
 def sync_all():
@@ -40,6 +55,8 @@ def sync_all():
 
     vectors = embeddings.embed([embeddings.book_text(b) for b in books])
     qdrant_store.rebuild(qdrant_store.connect(), books, vectors)
+    with postgres.connect() as conn:
+        pgvector_store.rebuild(conn, [b["id"] for b in books], vectors)
 
     redis_cache.connect().flushdb()
     return {"books": len(books), "members": len(members), "loans": len(loans),

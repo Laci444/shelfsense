@@ -3,7 +3,7 @@ test uses a throw-away book id and removes it again (and with it all edges)."""
 import pytest
 
 from shelfsense import decision
-from shelfsense.stores import postgres, qdrant_store
+from shelfsense.stores import pgvector_store, postgres, qdrant_store
 
 TMP = "TEST_PROPAGATION_BOOK"
 BOOK = {"id": TMP, "title": "Test Bees", "authors": ["Test Author"], "year": 2020, "genre": "science",
@@ -52,17 +52,20 @@ def test_add_update_delete_book_reaches_neo4j_and_qdrant(adv):
     assert point(adv).payload["title"] == "Test Bees" and node(adv)["genre"] == "science"
     assert adv.mongo["books"].find_one({"_id": TMP})["pages"] > 0        # type fields were filled in
     v0 = point(adv).vector
+    pv0 = pgvector_store.get(adv.pg, TMP)
+    assert pv0 is not None and len(pv0) == 384
 
     adv.update_book(TMP, genre="nature")                                    # no text change: no re-embedding
     assert node(adv)["genre"] == "nature" and point(adv).payload["genre"] == "nature"
-    assert point(adv).vector == v0
+    assert point(adv).vector == v0 and pgvector_store.get(adv.pg, TMP) == pv0
 
     adv.update_book(TMP, title="Deep Sea Submarines", description="Submarine engineering below the waves.")
     assert node(adv)["title"] == "Deep Sea Submarines" and point(adv).vector != v0
+    assert pgvector_store.get(adv.pg, TMP) != pv0
     assert adv.pg.execute("SELECT title FROM books WHERE id=%s", (TMP,)).fetchone()[0] == "Deep Sea Submarines"
 
     adv.delete_book(TMP)
-    assert point(adv) is None and node(adv) is None
+    assert point(adv) is None and node(adv) is None and pgvector_store.get(adv.pg, TMP) is None
     assert adv.mongo["books"].count_documents({"_id": TMP}) == 0
     assert adv.pg.execute("SELECT count(*) FROM books WHERE id=%s", (TMP,)).fetchone()[0] == 0
 

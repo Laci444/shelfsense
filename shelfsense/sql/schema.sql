@@ -98,3 +98,12 @@ ALTER TABLE decisions ALTER COLUMN rule_version SET NOT NULL;
 ALTER TABLE decisions DROP CONSTRAINT IF EXISTS decisions_outcome_check;
 ALTER TABLE decisions ADD CONSTRAINT decisions_outcome_check
     CHECK (outcome IN ('allow', 'waitlist', 'reject', 'needs_info'));
+
+-- pgvector (derived): book embeddings inside PostgreSQL, so they can be compared with Qdrant.
+-- No foreign key to books on purpose: `db load` truncates books and must not wipe the derived vectors.
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS book_vectors (
+    book_id     TEXT PRIMARY KEY,
+    embedding   vector(384) NOT NULL,
+    embedded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
