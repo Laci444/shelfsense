@@ -1,19 +1,19 @@
 {
- "started": "2026-10-20 19:58:12",
+ "started": "2026-11-25 18:47:50",
  "python": "3.14.8",
  "store_counts": {
   "postgres": {
-   "members": 3006,
-   "books": 20685,
-   "loans": 24691,
+   "members": 2906,
+   "books": 20000,
+   "loans": 24512,
    "waitlist": 401
   },
-  "mongo_books": 20685,
+  "mongo_books": 20000,
   "neo4j": {
-   "books": 20685,
-   "borrowed_edges": 24689
+   "books": 20000,
+   "borrowed_edges": 24506
   },
-  "qdrant_points": 20685
+  "qdrant_points": 20000
  },
  "loan_cases": {
   "cases": 15,
@@ -26,8 +26,8 @@
  },
  "vectors": {
   "collection": {
-   "points": 20685,
-   "indexed_vectors": 15104,
+   "points": 20000,
+   "indexed_vectors": 14848,
    "segments": 2,
    "hnsw": {
     "m": 16,
@@ -40,8 +40,8 @@
     "inline_storage": null
    },
    "payload_indexes": [
-    "genre",
-    "year"
+    "year",
+    "genre"
    ]
   },
   "model": "all-MiniLM-L6-v2 (normalised, cosine)",
@@ -49,217 +49,217 @@
   "n_queries_skipped_no_relevant": 0,
   "retrieval": {
    "recall@5": 0.73,
-   "MRR": 0.846,
+   "MRR": 0.821,
    "per_query": [
     {
      "id": 1,
-     "relevant": 2411,
+     "relevant": 2680,
      "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 2,
-     "relevant": 318,
+     "relevant": 335,
      "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 3,
-     "relevant": 144,
-     "recall@5": 1.0,
+     "relevant": 76,
+     "recall@5": 0.8,
      "rr": 1.0
     },
     {
      "id": 4,
-     "relevant": 558,
-     "recall@5": 0.6,
+     "relevant": 336,
+     "recall@5": 0.8,
      "rr": 1.0
     },
     {
      "id": 5,
-     "relevant": 334,
-     "recall@5": 0.8,
-     "rr": 0.5
+     "relevant": 216,
+     "recall@5": 0.4,
+     "rr": 0.33
     },
     {
      "id": 6,
-     "relevant": 85,
-     "recall@5": 0.8,
+     "relevant": 57,
+     "recall@5": 0.4,
      "rr": 0.5
     },
     {
      "id": 7,
-     "relevant": 600,
-     "recall@5": 0.8,
-     "rr": 1.0
-    },
-    {
-     "id": 8,
-     "relevant": 2519,
+     "relevant": 363,
      "recall@5": 0.6,
      "rr": 1.0
     },
     {
+     "id": 8,
+     "relevant": 2963,
+     "recall@5": 0.8,
+     "rr": 1.0
+    },
+    {
      "id": 9,
-     "relevant": 267,
-     "recall@5": 1.0,
+     "relevant": 156,
+     "recall@5": 0.6,
      "rr": 1.0
     },
     {
      "id": 10,
-     "relevant": 69,
+     "relevant": 44,
      "recall@5": 0.4,
      "rr": 0.25
     },
     {
      "id": 11,
-     "relevant": 1102,
-     "recall@5": 0.6,
+     "relevant": 1296,
+     "recall@5": 0.8,
      "rr": 1.0
     },
     {
      "id": 12,
-     "relevant": 574,
-     "recall@5": 0.4,
+     "relevant": 675,
+     "recall@5": 0.6,
      "rr": 1.0
     },
     {
      "id": 13,
-     "relevant": 215,
-     "recall@5": 0.6,
-     "rr": 0.33
+     "relevant": 254,
+     "recall@5": 0.8,
+     "rr": 0.5
     },
     {
      "id": 14,
-     "relevant": 219,
+     "relevant": 254,
      "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 15,
-     "relevant": 508,
-     "recall@5": 0.6,
+     "relevant": 380,
+     "recall@5": 0.8,
      "rr": 1.0
     },
     {
      "id": 16,
-     "relevant": 958,
+     "relevant": 573,
      "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 17,
-     "relevant": 835,
-     "recall@5": 0.8,
+     "relevant": 1000,
+     "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 18,
-     "relevant": 537,
+     "relevant": 557,
      "recall@5": 0.4,
-     "rr": 0.33
+     "rr": 0.5
     },
     {
      "id": 19,
-     "relevant": 1414,
+     "relevant": 1679,
      "recall@5": 1.0,
      "rr": 1.0
     },
     {
      "id": 20,
-     "relevant": 2578,
-     "recall@5": 0.2,
-     "rr": 1.0
+     "relevant": 2079,
+     "recall@5": 0.4,
+     "rr": 0.33
     }
    ]
   },
   "ann_unfiltered": [
    {
     "hnsw_ef": 16,
-    "ann_recall@10": 0.945,
+    "ann_recall@10": 0.985,
     "results_returned_avg": 10,
     "results_returned_min": 10,
-    "latency_ms_median": 3.32,
-    "exact_latency_ms_median": 3.98
+    "latency_ms_median": 3.04,
+    "exact_latency_ms_median": 3.86
    },
    {
     "hnsw_ef": 64,
-    "ann_recall@10": 0.995,
+    "ann_recall@10": 1.0,
     "results_returned_avg": 10,
     "results_returned_min": 10,
-    "latency_ms_median": 3.49,
-    "exact_latency_ms_median": 4.5
+    "latency_ms_median": 3.01,
+    "exact_latency_ms_median": 3.91
    },
    {
     "hnsw_ef": 128,
     "ann_recall@10": 1.0,
     "results_returned_avg": 10,
     "results_returned_min": 10,
-    "latency_ms_median": 3.1,
-    "exact_latency_ms_median": 3.84
+    "latency_ms_median": 3.07,
+    "exact_latency_ms_median": 3.66
    }
   ],
   "filter_5pct": {
    "filter": "year >= 2009",
-   "rows_kept": 908,
-   "rows_total": 20685,
-   "share": 0.044,
+   "rows_kept": 788,
+   "rows_total": 20000,
+   "share": 0.039,
    "runs": [
     {
      "hnsw_ef": 16,
      "ann_recall@10": 1.0,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 2.41,
-     "exact_latency_ms_median": 2.27
+     "latency_ms_median": 1.98,
+     "exact_latency_ms_median": 1.95
     },
     {
      "hnsw_ef": 64,
      "ann_recall@10": 1.0,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 2.31,
-     "exact_latency_ms_median": 2.4
+     "latency_ms_median": 1.97,
+     "exact_latency_ms_median": 1.95
     },
     {
      "hnsw_ef": 128,
      "ann_recall@10": 1.0,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 2.25,
-     "exact_latency_ms_median": 2.23
+     "latency_ms_median": 2.01,
+     "exact_latency_ms_median": 2.1
     }
    ]
   },
   "filter_50pct": {
    "filter": "year >= 1998",
-   "rows_kept": 10005,
-   "rows_total": 20685,
-   "share": 0.484,
+   "rows_kept": 9742,
+   "rows_total": 20000,
+   "share": 0.487,
    "runs": [
     {
      "hnsw_ef": 16,
-     "ann_recall@10": 0.85,
+     "ann_recall@10": 0.865,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 2.63,
-     "exact_latency_ms_median": 3.78
+     "latency_ms_median": 2.69,
+     "exact_latency_ms_median": 3.66
     },
     {
      "hnsw_ef": 64,
-     "ann_recall@10": 0.99,
+     "ann_recall@10": 0.96,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 2.63,
-     "exact_latency_ms_median": 3.76
+     "latency_ms_median": 2.76,
+     "exact_latency_ms_median": 3.62
     },
     {
      "hnsw_ef": 128,
      "ann_recall@10": 0.99,
      "results_returned_avg": 10,
      "results_returned_min": 10,
-     "latency_ms_median": 3.57,
-     "exact_latency_ms_median": 4.43
+     "latency_ms_median": 2.99,
+     "exact_latency_ms_median": 3.79
     }
    ]
   }
@@ -268,86 +268,78 @@
   "query": "epic fantasy with dragons and magic",
   "genre_filter": "fantasy",
   "qdrant_top_k": 10,
-  "free_after_join": 10,
+  "free_after_join": 9,
   "rows": [
    {
     "id": "OL2660328W",
     "title": "Calling on dragons",
-    "available": 3,
-    "total": 3,
+    "available": 5,
+    "total": 5,
     "active_loans": 0,
     "waiting": 0
    },
    {
     "id": "OL73428W",
     "title": "Dragon Wing",
-    "available": 5,
-    "total": 5,
-    "active_loans": 0,
-    "waiting": 0
-   },
-   {
-    "id": "OL2660331W",
-    "title": "Dealing with Dragons",
-    "available": 5,
-    "total": 5,
-    "active_loans": 0,
-    "waiting": 0
-   },
-   {
-    "id": "OL3525442W",
-    "title": "Dragon path",
-    "available": 3,
-    "total": 3,
-    "active_loans": 0,
-    "waiting": 0
-   },
-   {
-    "id": "OL2660314W",
-    "title": "Searching for dragons",
-    "available": 5,
-    "total": 5,
-    "active_loans": 0,
-    "waiting": 0
-   },
-   {
-    "id": "OL13750205W",
-    "title": "The book of the dragon",
     "available": 1,
     "total": 1,
     "active_loans": 0,
     "waiting": 0
    },
    {
-    "id": "OL3347888W",
-    "title": "The real Middle-earth",
-    "available": 5,
-    "total": 5,
-    "active_loans": 0,
-    "waiting": 0
-   },
-   {
-    "id": "OL3521984W",
-    "title": "Dragonswan",
+    "id": "OL2660331W",
+    "title": "Dealing with Dragons",
     "available": 4,
     "total": 4,
     "active_loans": 0,
     "waiting": 0
    },
    {
-    "id": "OL2485508W",
-    "title": "Dragons luck",
+    "id": "OL2660314W",
+    "title": "Searching for dragons",
+    "available": 2,
+    "total": 2,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL13750205W",
+    "title": "The book of the dragon",
     "available": 3,
     "total": 3,
     "active_loans": 0,
     "waiting": 0
    },
    {
-    "id": "OL90388W",
-    "title": "The Fire Dragon",
+    "id": "OL3347888W",
+    "title": "The real Middle-earth",
+    "available": 2,
+    "total": 2,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL2655112W",
+    "title": "Other worlds",
     "available": 4,
     "total": 5,
     "active_loans": 1,
+    "waiting": 0
+   },
+   {
+    "id": "OL2485585W",
+    "title": "Dragons Wild",
+    "available": 5,
+    "total": 5,
+    "active_loans": 0,
+    "waiting": 0
+   },
+   {
+    "id": "OL2630516W",
+    "title": "Fantasy",
+    "available": 1,
+    "total": 1,
+    "active_loans": 0,
     "waiting": 0
    }
   ]
@@ -359,11 +351,11 @@
    {
     "round": 1,
     "results": {
-     "S_PREM": [
+     "S_STD": [
       "allow",
       "copy available"
      ],
-     "S_STD": [
+     "S_PREM": [
       "waitlist",
       "no copy available"
      ]
@@ -373,11 +365,11 @@
    {
     "round": 2,
     "results": {
-     "S_PREM": [
+     "S_STD": [
       "allow",
       "copy available"
      ],
-     "S_STD": [
+     "S_PREM": [
       "waitlist",
       "no copy available"
      ]
@@ -387,11 +379,11 @@
    {
     "round": 3,
     "results": {
-     "S_PREM": [
+     "S_STD": [
       "allow",
       "copy available"
      ],
-     "S_STD": [
+     "S_PREM": [
       "waitlist",
       "no copy available"
      ]
@@ -424,8 +416,8 @@
  },
  "update_across": {
   "before": {
-   "qdrant_title": "The Caves of Steel",
-   "neo4j_title": "The Caves of Steel",
+   "qdrant_title": "Discrete and computational geometry",
+   "neo4j_title": "Discrete and computational geometry",
    "neo4j_edge": null
   },
   "after_update_book": {
@@ -453,5 +445,381 @@
   },
   "derived_errors": []
  },
- "seconds": 22.4
+ "labels": {
+  "frozen": true,
+  "ok": true,
+  "files": {
+   "interest_queries.json": "match",
+   "loan_cases.json": "match"
+  },
+  "frozen_on": "2026-11-25",
+  "counts": {
+   "interest_queries": 20,
+   "loan_cases": 15
+  }
+ },
+ "hybrid": {
+  "n_queries": 20,
+  "modes": {
+   "vector": {
+    "recall@5": 0.73,
+    "MRR": 0.821,
+    "latency_ms": 4.2
+   },
+   "keyword": {
+    "recall@5": 0.51,
+    "MRR": 0.677,
+    "latency_ms": 22.8
+   },
+   "hybrid": {
+    "recall@5": 0.76,
+    "MRR": 0.925,
+    "latency_ms": 29.1
+   }
+  },
+  "example": {
+   "query": "coming-of-age adventure for young readers",
+   "rule": "young|boy|girl|teen|coming of age|adventure",
+   "n_relevant": 2079,
+   "per_mode": {
+    "vector": {
+     "first_relevant_rank_in_top50": 3,
+     "top5": [
+      {
+       "id": "OL2715526W",
+       "title": "Powerful magic",
+       "relevant": false
+      },
+      {
+       "id": "OL1386921W",
+       "title": "Best Loved Selections from Children's Classics",
+       "relevant": false
+      },
+      {
+       "id": "OL3503898W",
+       "title": "Alfred Hitchcock Presents",
+       "relevant": true
+      },
+      {
+       "id": "OL18409W",
+       "title": "The Emerald City of Oz",
+       "relevant": true
+      },
+      {
+       "id": "OL1917192W",
+       "title": "The  trail book",
+       "relevant": false
+      }
+     ]
+    },
+    "keyword": {
+     "first_relevant_rank_in_top50": 1,
+     "top5": [
+      {
+       "id": "OL1518306W",
+       "title": "The Valley of Fear and Selected Cases (Adventure of Black Peter / Adventure of Charles Augustus Milverton / Adventure of the Abbey Grange / Adventure of the Bruce-Partington Plans / Adventure of the Dancing Men / Adventure of the Dying Detective / Adventure of the Empty House / Adventure of the Six Napoleons / Disappearance of Lady Frances Carfax / His Last Bow / Valley of Fear)",
+       "relevant": true
+      },
+      {
+       "id": "OL262532W",
+       "title": "Sherlock Holmes Mysteries [22 stories]",
+       "relevant": true
+      },
+      {
+       "id": "OL1518175W",
+       "title": "Favorite Sherlock Holmes Detective Stories (Adventure of the Crooked Man / Adventure of the Dancing Men / Adventure of the Engineer's Thumb / Adventure of the Speckled Band / Final Problem / Red-Headed League / Scandal in Bohemia / Silver Blaze)",
+       "relevant": true
+      },
+      {
+       "id": "OL1518228W",
+       "title": "The Puffin Sherlock Holmes (Adventure of the Blue Carbuncle / Adventure of the Dancing Men / Adventure of the Musgrave Ritual / Adventure of the Reigate Squire / Adventure of the Six Napoleons / Adventure of the Speckled Band / Problem of Thor Bridge / Silver Blaze)",
+       "relevant": true
+      },
+      {
+       "id": "OL2689014W",
+       "title": "To live in the center of the moment",
+       "relevant": false
+      }
+     ]
+    },
+    "hybrid": {
+     "first_relevant_rank_in_top50": 1,
+     "top5": [
+      {
+       "id": "OL262426W",
+       "title": "The Case-Book of Sherlock Holmes",
+       "relevant": true
+      },
+      {
+       "id": "OL2023354W",
+       "title": "The Chronicles of Solar Pons",
+       "relevant": true
+      },
+      {
+       "id": "OL14857796W",
+       "title": "The new adventures of Ellery Queen",
+       "relevant": true
+      },
+      {
+       "id": "OL13731040W",
+       "title": "The classrooms all young children need",
+       "relevant": true
+      },
+      {
+       "id": "OL1518306W",
+       "title": "The Valley of Fear and Selected Cases (Adventure of Black Peter / Adventure of Charles Augustus Milverton / Adventure of the Abbey Grange / Adventure of the Bruce-Partington Plans / Adventure of the Dancing Men / Adventure of the Dying Detective / Adventure of the Empty House / Adventure of the Six Napoleons / Disappearance of Lady Frances Carfax / His Last Bow / Valley of Fear)",
+       "relevant": true
+      }
+     ]
+    }
+   }
+  }
+ },
+ "compare": {
+  "n_queries": 20,
+  "vectors": {
+   "qdrant": 20000,
+   "pgvector": 20000
+  },
+  "filters": {
+   "5pct": {
+    "year>=": 2009,
+    "rows": 788
+   },
+   "50pct": {
+    "year>=": 1998,
+    "rows": 9742
+   },
+   "rows_total": 20000
+  },
+  "pgvector_index_mb": 41.0,
+  "qdrant": {
+   "quality": {
+    "recall@5": 0.73,
+    "MRR": 0.821
+   },
+   "ann_unfiltered": [
+    {
+     "ef": 16,
+     "ann_recall@10": 0.985,
+     "results_min": 10,
+     "latency_ms": 2.72,
+     "exact_latency_ms": 3.43
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.81,
+     "exact_latency_ms": 3.53
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.95,
+     "exact_latency_ms": 3.53
+    }
+   ],
+   "filter_5pct": [
+    {
+     "ef": 16,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.11,
+     "exact_latency_ms": 2.12
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.21,
+     "exact_latency_ms": 2.2
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.38,
+     "exact_latency_ms": 2.28
+    }
+   ],
+   "filter_50pct": [
+    {
+     "ef": 16,
+     "ann_recall@10": 0.865,
+     "results_min": 10,
+     "latency_ms": 3.4,
+     "exact_latency_ms": 4.13
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 0.96,
+     "results_min": 10,
+     "latency_ms": 2.88,
+     "exact_latency_ms": 3.81
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 0.99,
+     "results_min": 10,
+     "latency_ms": 2.81,
+     "exact_latency_ms": 3.75
+    }
+   ]
+  },
+  "pgvector": {
+   "quality": {
+    "recall@5": 0.73,
+    "MRR": 0.821
+   },
+   "ann_unfiltered": [
+    {
+     "ef": 16,
+     "ann_recall@10": 0.925,
+     "results_min": 10,
+     "latency_ms": 1.32,
+     "exact_latency_ms": 8.7
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 1.81,
+     "exact_latency_ms": 8.79
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 1.0,
+     "results_min": 10,
+     "latency_ms": 2.24,
+     "exact_latency_ms": 9.04
+    }
+   ],
+   "filter_5pct": [
+    {
+     "ef": 16,
+     "ann_recall@10": 0.985,
+     "results_min": 10,
+     "latency_ms": 3.7,
+     "exact_latency_ms": 3.68
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 0.985,
+     "results_min": 10,
+     "latency_ms": 3.77,
+     "exact_latency_ms": 3.78
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 0.99,
+     "results_min": 10,
+     "latency_ms": 4.46,
+     "exact_latency_ms": 3.74
+    }
+   ],
+   "filter_50pct": [
+    {
+     "ef": 16,
+     "ann_recall@10": 0.955,
+     "results_min": 10,
+     "latency_ms": 1.6,
+     "exact_latency_ms": 9.26
+    },
+    {
+     "ef": 64,
+     "ann_recall@10": 0.995,
+     "results_min": 10,
+     "latency_ms": 1.75,
+     "exact_latency_ms": 9.21
+    },
+    {
+     "ef": 128,
+     "ann_recall@10": 0.995,
+     "results_min": 10,
+     "latency_ms": 2.7,
+     "exact_latency_ms": 9.68
+    }
+   ]
+  },
+  "top10_overlap_between_stores": 1.0
+ },
+ "rules_demo": {
+  "v1_outcome": "reject",
+  "v2_outcome": "allow",
+  "old_decision": {
+   "rule_version": 1,
+   "replay_ok": true,
+   "active_version_at_explain": 2
+  },
+  "new_decision": {
+   "rule_version": 2,
+   "replay_ok": true
+  }
+ },
+ "stale_derived": {
+  "before": {
+   "source_version": 1,
+   "stores": {
+    "neo4j": 1,
+    "qdrant": 1,
+    "pgvector": 1,
+    "fts": 1
+   },
+   "vector_hit": false,
+   "keyword_hit": false,
+   "qdrant_payload_version": 1
+  },
+  "stale": {
+   "source_version": 2,
+   "stores": {
+    "neo4j": 1,
+    "qdrant": 1,
+    "pgvector": 1,
+    "fts": 1
+   },
+   "vector_hit": false,
+   "keyword_hit": false,
+   "qdrant_payload_version": 1
+  },
+  "refresh": {
+   "refreshed": {
+    "neo4j": 2,
+    "qdrant": 2,
+    "pgvector": 2,
+    "fts": 2
+   },
+   "orphans_removed": {
+    "neo4j": 0,
+    "qdrant": 0,
+    "pgvector": 0,
+    "fts": 0
+   },
+   "seconds": 0.93,
+   "errors": []
+  },
+  "after": {
+   "source_version": 2,
+   "stores": {
+    "neo4j": 2,
+    "qdrant": 2,
+    "pgvector": 2,
+    "fts": 2
+   },
+   "vector_hit": true,
+   "keyword_hit": true,
+   "qdrant_payload_version": 2
+  }
+ },
+ "safety_tests": {
+  "passed": 34,
+  "failed": 0
+ },
+ "data_checks": {
+  "checks": 21,
+  "passed": 21,
+  "failed": []
+ },
+ "seconds": 77.8
 }

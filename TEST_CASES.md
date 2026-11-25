@@ -1,7 +1,7 @@
 # ShelfSense - user test cases for the demo
 
 Every case is a command, the member and book it uses, and the expected result. The ids are the scenario members and
-books of the current 20,685-book dataset (`data/generated/scenario.json`; a rebuilt dataset has other book ids).
+books of the current 20,000-book dataset (`data/generated/scenario.json`; a rebuilt dataset has other book ids).
 The expected outcomes follow from the loan rules, not from running the program, and `shelfsense eval all` checks the 15 loan cases automatically.
 
 Start from a clean state before the demo and after anything that changes data (`borrow`, the `eval` demos):
@@ -83,12 +83,12 @@ Run in this order on a clean state (`shelfsense db load`):
 | 26 | `shelfsense recommend "epic fantasy with dragons" --genre fantasy` | 5 fantasy books about dragons, all with at least one free copy, e.g. *Dragon path*, *Calling on dragons*, *Dealing with Dragons* (semantic search in Qdrant, filtered by genre, then joined with PostgreSQL availability) |
 | 27 | `shelfsense similar OL46401W -n 5` | 5 books related to *The Caves of Steel*, mostly by Isaac Asimov (`via` = `same_author`), all with free copies |
 | 28 | `shelfsense eval join` | Qdrant top 10 for the fantasy query, then PostgreSQL adds `free=x/y loans=n waiting=n` for each book |
-| 29 | `shelfsense eval vectors` | recall@5 about 0.73, MRR about 0.85 on the 20 labelled queries; ANN recall@10 about 0.95 at the lowest `ef`, 1.0 at the highest |
+| 29 | `shelfsense eval vectors` | recall@5 0.73, MRR 0.82 on the 20 labelled queries; ANN recall@10 about 0.99 at the lowest `ef`, 1.0 at the highest |
 
 ## E. Several databases at once
 | # | Command | Expected |
 |---|---|---|
-| 30 | `shelfsense db status` | PostgreSQL 3006 members / 20685 books / 24691 loans / 401 waitlist; MongoDB 20685 books; Neo4j 20685 books and 24689 `BORROWED` edges; Qdrant 20685 points |
+| 30 | `shelfsense db status` | PostgreSQL 2906 members / 20000 books / 24512 loans / 401 waitlist; MongoDB 20000 books; Neo4j 20000 books and 24506 `BORROWED` edges (one edge per distinct member and book); Qdrant 20000 points |
 | 31 | `shelfsense eval update-across` | through the Advisor: a title/description edit drops the Redis entry, re-embeds only that book in Qdrant (new vector, title) and renames the Neo4j node; `borrow` adds the `BORROWED` edge, `return` marks it returned; an added book appears in Neo4j and Qdrant, a deleted one disappears from both. No sync is run. The demo restores all data at the end |
 | 32 | `shelfsense book add DEMO1 "Bees" "A. Author" science "Honey bees and hives."` then `shelfsense recommend "honey bees"`, then `shelfsense book edit DEMO1 --title "Wasps"`, `shelfsense book delete DEMO1` | the new book is recommendable immediately (Qdrant) without sync; after delete it is gone from every store |
 
@@ -100,13 +100,27 @@ Run in this order on a clean state (`shelfsense db load`):
 | 35 | TUI Scenarios tab (F8), Run all | summary "15/15 correct" |
 | 36 | TUI Stores tab (F7) | row counts and latency of all five stores, Redis cache entries; Flush clears them |
 | 37 | `shelfsense --json advise S_STD OL46398W` | the same answer as raw JSON (`outcome`, `reason`, `from_cache`, `alternatives`) |
-| 38 | `shelfsense advise NOPE OL46398W` | a red error message and exit code 1 (unknown member) |
+| 38 | `shelfsense advise NOPE OL46398W` | **NEEDS_INFO**: member not found. Missing evidence is not guessed; the decision is stored with the reason (`--json` shows it) |
 
-## G. Automatic checks
+## G. Project II features
+| # | Command | Expected |
+|---|---|---|
+| 39 | `shelfsense eval rules` | `S_FULL` is rejected under rules v1 (limit 3, decision #1); after v2 (limit 4) is published the same request is allowed (decision #2); decision #1 is explained with v1 and replays to *reject*. Data and rule versions are reset afterwards |
+| 40 | `shelfsense explain 1` (after a borrow) / `shelfsense explain S_STD OL46398W` | the stored decision with its inputs, rule version and the rule-by-rule replay (`replay_ok`), or the same rule trace for a live check. TUI: Librarian tab, Enter on a decision or "Explain selected decision" |
+| 41 | `shelfsense rules list`, `rules show 1`, `rules publish ...` | all rule versions with validity dates; publishing a version deletes cached decisions |
+| 42 | `shelfsense recommend "coming-of-age adventure for young readers" --mode vector\|keyword\|hybrid` | three result lists; hybrid (reciprocal rank fusion, K=60) puts a relevant book first |
+| 43 | `shelfsense eval hybrid` | vector recall@5 0.73 / MRR 0.82, keyword 0.51 / 0.68, hybrid 0.76 / 0.93 on the 20 frozen queries, plus one explained query |
+| 44 | `shelfsense eval compare` | pgvector against Qdrant on the same 20 queries: recall, ANN recall at `ef` 16/64/128, filters at 5% and 50%, latency, index size, top-10 overlap 1.0 |
+| 45 | `shelfsense eval stale` | one temporary book: before (all stores at version 1), stale (source v2, stores v1, search misses), after `refresh` (all v2, search hits); the book is deleted at the end |
+| 46 | `shelfsense db derived` / `db refresh` | per store: current / stale / missing / orphans and the last refresh; refresh re-indexes only stale books |
+| 47 | `shelfsense db check` | 21 data checks (counts, duplicates, cross-store agreement, registry, labels), exit code 1 on a failure |
+| 48 | `shelfsense eval labels` | the label files match the SHA-256 hashes frozen in `data/labels/labels.lock.json` (20 queries, 15 loan cases) |
+
+## H. Automatic checks
 | Command | Expected |
 |---|---|
-| `shelfsense test` | 46 passed (on separate test databases; the real data is not touched) |
-| `shelfsense eval all` | all measurements and demos; 15/15 loan cases, 20/20 concurrency rounds; writes `report/results.txt` and `results.json` |
+| `shelfsense test` | 108 passed (on separate test databases; Neo4j and Qdrant are the real ones, with throw-away ids) |
+| `shelfsense eval all` | all measurements and demos; 15/15 loan cases, 20/20 concurrency rounds, 34 safety tests, 21/21 data checks; writes `report/results.txt` and `results.json` |
 
 ## Suggested order for a live demo (about 5 minutes)
 1. `shelfsense db status` (case 30): five databases, one dataset.

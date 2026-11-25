@@ -55,8 +55,12 @@ shelfsense similar OL46401W -n 5
 shelfsense search "dune"
 shelfsense --json advise S_STD OL46398W   # raw JSON
 shelfsense db up | down | load | sync | status
+shelfsense db check | derived | refresh | pgvector   # data checks, derived-copy registry, refresh, pgvector store
+shelfsense rules list | show | publish               # versioned loan rules
+shelfsense explain <decision-id>                     # replay a stored decision with its rule version
+shelfsense recommend "<text>" --mode vector|keyword|hybrid
 shelfsense data build | fetch | generate | labels
-shelfsense eval all | vectors | join | concurrency | stale-cache | update-across
+shelfsense eval all | vectors | hybrid | compare | rules | stale | labels | join | concurrency | stale-cache | update-across
 shelfsense test
 ```
 The example book ids are the scenario books of the current 20k dataset; a rebuilt dataset has other ids (see `data/generated/scenario.json`, or use `search`).
@@ -64,7 +68,7 @@ The example book ids are the scenario books of the current 20k dataset; a rebuil
 ## Tests and measurements
 User-facing demo scenarios (member, book, expected outcome for each feature) are in [TEST_CASES.md](TEST_CASES.md).
 ```
-shelfsense test                  # 46 tests, run on separate test databases; no re-sync needed
+shelfsense test                  # 108 tests, run on separate test databases; no re-sync needed
 shelfsense eval all              # all measurements and demos -> report/results.txt, results.json
 ```
 Individual demos: `shelfsense eval vectors | join | concurrency | stale-cache | update-across`.
@@ -76,10 +80,10 @@ Individual demos: `shelfsense eval vectors | join | concurrency | stale-cache | 
 - Redis: expiring, fast-changing state (cached decisions, reading lists).
 - Neo4j: relationships (same author, "also borrowed").
 - Qdrant: meaning-based search over book blurbs with metadata filters.
+- pgvector + PostgreSQL full text: the same vectors for a comparison with Qdrant, and keyword search for hybrid ranking.
 
-PostgreSQL and MongoDB are the sources of record; Redis, Neo4j and Qdrant are derived and carry `source_id` / `refreshed_at`.
-pgvector is not used (Qdrant is the only vector store).
+PostgreSQL and MongoDB are the sources of record; Redis, Neo4j, Qdrant, pgvector and full text are derived. The `derived_state` registry records the source version each copy was built from (`db derived`, `db refresh`).
 
 ## Documents
-- `report/report.md` – the report; `report/presentation.md` – week-7 material (data model, vector search, measurement plan)
+- `report/report.md` – the report; `report/presentation.md` – Project II slides
 - `data/raw/SOURCES.md` – data sources and licences

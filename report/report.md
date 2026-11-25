@@ -1,155 +1,115 @@
 ---
 geometry:
-  - margin=2cm
+  - margin=1.8cm
+fontsize: 10pt
 ---
-# ShelfSense – report
+# ShelfSense – report (Project presentation II)
 
-## 1. Problem and decision
-ShelfSense is a library loan advisor. For a (member, book) pair it returns **allow**, **waitlist** or **reject** with a reason,
-and when the answer is not "allow" it suggests alternatives that have a free copy. One program uses five stores,
-each for one reason. Data: 20,685 books from Open Library (CC0) plus synthetic members (3,006), loans (24,691) and
-waitlist entries (401); see `data/raw/SOURCES.md`. The PDF suggests 200–1,000 records per store; I deliberately used more
-so that Qdrant builds its HNSW index with default thresholds.
+ShelfSense is a library loan advisor. For a (member, book) pair it returns **allow**, **waitlist**, **reject** or **needs_info**,
+the reason, and alternatives that have a free copy. Data: 20,000 Open Library books (CC0, `data/raw/SOURCES.md`) plus synthetic
+members (2,906), loans (24,512) and waitlist entries (401). Stores: PostgreSQL 16 + pgvector 0.8, MongoDB 7, Redis 7, Neo4j 5,
+Qdrant 1.19. The book id (Open Library work id) is the key in every store. PostgreSQL and MongoDB are the sources of record;
+Redis, Neo4j, Qdrant, pgvector and the full-text table are **derived copies**.
+Every number below is printed by `shelfsense eval all` (`report/results.txt`, `results.json`).
 
-**Deviation from the PDF:** the PDF asks for pgvector and Qdrant to be compared head to head. I use Qdrant as the only vector store
-(PostgreSQL is plain `postgres:16.4`), so the pgvector-specific items (shared ids between both systems, `ef_search`, iterative scan,
-single-SQL join) are not done. The Qdrant + PostgreSQL join is done in two steps instead (section 5).
-
-## 2. Architecture
-| Store | Version | Role | Why |
+## 0. What is new since Project presentation I
+| # | Change (lecture) | Before / after | Still not handled |
 |---|---|---|---|
-| PostgreSQL | 16.4 | source of record | transactions and constraints for loans |
-| MongoDB | 7.0.14 | source of record | book records that differ by type (`$jsonSchema` per type) |
-| Redis | 7.2.5 | derived | decision cache, TTL 300 s; reading lists, TTL 1800 s |
-| Neo4j | 5.24.2 | derived | graph: same author, "also borrowed" |
-| Qdrant | 1.19.1 | derived | semantic search over descriptions (384-d MiniLM, cosine, HNSW) |
+| 1 | **Versioned rules** (11): rules live in table `rules` with validity dates; every decision stores `rule_version`, `rule_id` and its `inputs` | Rules v1 reject `S_FULL` (limit 3). After publishing v2 (limit 4) the same request is allowed; the old decision #1 is replayed with v1 and still gives *reject* (`replay_ok`) | Rules are numeric parameters, not new rule logic; a new kind of rule needs code |
+| 2 | **Missing evidence -> `needs_info`** (11): an unknown member or book is no longer an error | Before: exception. After: stored decision *needs_info*; 24 hostile-id cases (SQL/Cypher injection, empty, NUL, very long) change no rows | A misspelled but valid id is a different member; no fuzzy matching |
+| 3 | **Hybrid search** (11): keyword (PostgreSQL full text) + vector (Qdrant), reciprocal rank fusion K=60 | recall@5 0.73 -> 0.76, MRR 0.821 -> 0.925 on 20 labelled queries (section 4) | Labels are regex rules, so keyword search is partly measured with its own kind of signal |
+| 4 | **Derived-copy registry + refresh** (9): `derived_state` stores the source version each copy was built from | A missed update is visible as *stale* and `refresh` repairs only that book (demo in section 3) | Detects staleness by version, not by comparing content; Redis is not in the registry (TTL only) |
+| 5 | **Concurrency and safety tests** (8) and **data checks** (10) | 34 safety tests, 21 data checks (`db check`); a double borrow by one member, from 4 threads, gives exactly one *allow* | One database lock per book; no distributed locking across several app servers |
+| 6 | **pgvector next to Qdrant** (lecture on vector stores) | Same top-10 for both (overlap 1.0), different speed and filter behaviour (section 4) | One embedding model; no hybrid inside pgvector |
 
-All stores start with `docker compose up` (pinned versions). The book id (Open Library work id) is the key in every store.
-Derived stores keep `source_id` and `refreshed_at` (Redis decision entries too) and can be rebuilt from the sources with
-`python -m shelfsense.sync` (`shelfsense db sync`) or kept in step by the Advisor.
+## 1. Why each store holds its data
+| Store | Main query (from the code) | Why here |
+|---|---|---|
+| PostgreSQL | `SELECT ... FROM books WHERE id=$1 FOR UPDATE`, then insert loan, `available-1`, insert decision, one transaction | several rows change together; `CHECK (available>=0)` and the unique partial index `uq_active_loan(member_id, book_id) WHERE returned_at IS NULL` are checked on every write |
+| MongoDB | `books.insert_one(doc)` / `find_one({_id})` with a `$jsonSchema` per `book_type` | an ebook has `size_mb`, a journal has `issn`; one document is read and written as a whole. An ebook without `size_mb` and a journal with paperback fields are rejected |
+| Redis | `GET decision:{member}:{book}` (TTL 300 s) | read by key, expires on its own; the answer is only a cache, the truth stays in PostgreSQL |
+| Neo4j | `MATCH (:Book {source_id:$id})<-[:BORROWED]-(:Member)-[:BORROWED]->(o:Book) RETURN o, count(*) ORDER BY 2 DESC` | "also borrowed" and "same author" are relationship patterns |
+| Qdrant, pgvector | cosine top-k over 384-d MiniLM vectors with a `genre` / `year` filter | finds a book by meaning; exact fields (year, genre) are only filters |
+| PostgreSQL full text | `to_tsvector('english', body) @@ to_tsquery(...)`, `ts_rank_cd` | exact words (names, codes) that embeddings blur |
 
-**Decision rules** (first match wins): suspended -> at max loans -> already holds the book -> already on waitlist ->
-journal for a standard member -> no copy (waitlist) -> allow.
-**Write path** `borrow()`: one PostgreSQL transaction with `SELECT ... FOR UPDATE` on the book row; the loan, the availability
-update and the decision row commit together. Afterwards cached decisions for that book are deleted in Redis.
-**Return path** `return_book()`: one transaction that closes the loan, adds the copy back and walks the waitlist in order; the first member
-who is allowed to borrow (the loan rules are re-evaluated) gets the copy and a decision "promoted from waitlist"; ineligible members
-(e.g. suspended) stay in the queue.
-Neo4j and Qdrant are updated right after the commit, one change at a time: `borrow()`/`return_book()` write or mark the `BORROWED` edge
-(a waitlist promotion creates the promoted member's edge), and `add_book`/`update_book`/`delete_book` change PostgreSQL + MongoDB and then
-the Neo4j node and the single Qdrant point (re-embedded only when title or description changed). If a derived store is down the source
-change still stands (the error is collected in `Advisor.derived_errors`) and `sync` repairs it.
+**PostgreSQL alone would also work** for "also borrowed": a self join on `loans` (`l1 JOIN l2 ON l1.member_id=l2.member_id AND l1.book_id<>l2.book_id`).
+Neo4j gives a one-line pattern and a second copy that can drift (24,506 edges, which `db check` compares with the 24,506 distinct member-book pairs
+in PostgreSQL). For a fixed two-step join this is not needed; I kept it because the graph also answers same-author and, later, longer paths.
+Qdrant and pgvector hold the same vectors on purpose: the comparison in section 4 is a handout task.
 
-## 3. Test plan (written before tuning)
-- 15 labelled loan decisions on fixed scenario members and books (`data/labels/loan_cases.json`).
-- 20 free-text interest queries; a book is relevant if its genre is in the query's genre list and a regex fixed per query
-  matches title, subjects or description (`data/build_labels.py`). The rules were not changed after seeing results.
-- Metrics: recall@5 (hits divided by min(5, number of relevant books)), MRR, and ANN recall@10 against exact search.
-- 46 automated tests (`pytest tests`, or `shelfsense test`) run against separate test databases, so they never change the real data. They cover the loan rules, return and waitlist promotion, concurrency, the data sources, propagation to Neo4j and Qdrant, the backend features of the TUI, and the TUI itself (headless).
-- Every number below comes from one run of `shelfsense eval all`, saved in `report/results.txt` and `report/results.json`.
+## 2. The decision
+**Method: rules** (first failing rule decides), parameters from the active row in `rules`. In order: unknown member/book -> `needs_info` (r0);
+suspended (r1); at the loan limit (r2_limit); already holds the book; already on the waitlist; journal for a standard member;
+no copy -> waitlist; otherwise allow (r6_available). Code: `rules.evaluate` (pure function of `inputs` and `params`), `postgres.borrow`.
+`borrow` runs in one transaction with a row lock on the book; the loan, the new availability and the decision row commit together,
+then Redis is invalidated and Neo4j, Qdrant, pgvector and full text follow for that one book.
 
-## 4. Results
-**Loan decisions:** 15 of 15 labelled cases correct. **MongoDB validation:** an ebook without `size_mb` and a journal with
-paperback fields are both rejected by `$jsonSchema`.
+Saved case (`eval rules`): *rules v1: reject - member at max loans (decision #1)*; *published v2: same request -> allow - copy available (decision #2)*.
+**Concurrency test** (`eval concurrency`): two members take the last copy at the same moment, 20 rounds: exactly one *allow* and one *waitlist* in **20/20** rounds,
+`available` never below 0. **Safety tests** (`tests/test_safety.py`, 34 tests, all pass): 24 hostile ids (12 strings as member and as book) give `needs_info`
+and unchanged row counts, 3 unknown-id cases are stored, a suspended member is rejected, borrowing twice gives one loan, waiting three times one waitlist row,
+4 threads borrowing for the same member give one *allow*, returning twice or without a loan raises, a duplicate book id is refused, and the data checks catch deliberate corruption.
 
-**Qdrant collection:** 20,685 points, `m=16`, `ef_construct=100`, default thresholds, 2 segments; **15,104** vectors are in the HNSW index
-(the rest sit in a segment below the indexing threshold and are searched by scan). With the default of one segment per CPU the
-upload was split into 8 small segments and `indexed_vectors` was 0, so the collection is created with `default_segment_number=1`.
+## 3. One source change and its derived copies (`eval stale`)
+A temporary book `DEMO_STALE_BOOK` is added with propagation on. Its description is then changed while propagation is off (a missed delivery).
 
-**Retrieval quality** (20 queries): recall@5 = **0.73**, MRR = **0.846**.
-
-**ANN vs exact search** (recall@10 of ANN against `exact=True`, 20 queries, median latency in ms, ANN / exact):
-
-| hnsw_ef | no filter (20,685 rows) | `year>=2009` (908 rows, 4.4%) | `year>=1998` (10,005 rows, 48.4%) |
+| State | Source (PostgreSQL) | neo4j / qdrant / pgvector / fts | search "bathyscaphe pressure hulls" |
 |---|---|---|---|
-| 16 | 0.945 (3.32 / 3.98) | 1.0 (2.41 / 2.27) | 0.85 (2.63 / 3.78) |
-| 64 | 0.995 (3.49 / 4.50) | 1.0 (2.31 / 2.40) | 0.99 (2.63 / 3.76) |
-| 128 | 1.0 (3.10 / 3.84) | 1.0 (2.25 / 2.23) | 0.99 (3.57 / 4.43) |
+| 1. before | version 1 | 1 / 1 / 1 / 1, all *current* | vector miss, keyword miss (text not there yet) |
+| 2. stale | version 2 | 1 / 1 / 1 / 1, all **STALE** (4 pending) | vector miss, keyword miss |
+| 3. after `refresh` | version 2 | 2 / 2 / 2 / 2, all current (0.3 s, only this book) | vector **hit**, keyword **hit** |
 
-Reading the table:
-- A small `hnsw_ef` costs recall (0.945 unfiltered, 0.85 with the 48% filter); from 64 up, ANN finds nearly the same top-10 as exact search.
-- The 4.4% filter keeps 908 rows, below `full_scan_threshold` (10,000 KB, roughly 6,500 vectors of 384 floats). Qdrant most likely answers it
-  by exact scan, so its perfect recall and equal latency say nothing about HNSW. The 48% filter is above that threshold and is the real filtered-HNSW test:
-  the filter lowers recall at small `hnsw_ef` (0.85 vs 0.945) and needs `hnsw_ef` >= 64 to recover.
-- ANN is about 1.2–1.4x faster than exact search without a filter and with the 48% filter, but the absolute times are 2–4.5 ms and include
-  the HTTP round trip from WSL to Docker, so I treat this as small and not as a proven speedup.
-- All queries returned 10 results in every setting.
+The run prints source ids, versions and refresh times per store. The trigger on `books` raises `version` only when title, genre, year or type change (not on
+`available`), and a Mongo-only description change touches `updated_at`. In the full `eval all` run, refresh also repaired one other book whose version
+the previous demo's data reload had reset, which shows the registry catches this as well. The registry at the end: 20,000 current rows per store, 0 stale, 0 missing, 0 orphans.
 
-**Weak queries.** Query 20 has recall@5 = 0.2 and queries 10, 12 and 18 have 0.4.
-Query 20 has 2,578 relevant books because its rule (`young|boy|girl|teen|adventure`) matches many unrelated descriptions
-across three genres; the embedding captures meaning, the regex captures words, so part of the gap is label noise.
-Another cause is the genre labels of the dump books, which are keyword heuristics.
+## 4. Measured results
+Labels and test cases were written before tuning and are **frozen** (`data/labels/labels.lock.json`, SHA-256 of 20 interest queries and 15 loan cases; `eval labels`).
+**Loan decisions:** 15/15 correct. **Retrieval:** recall@5 = hits / min(5, #relevant), MRR = mean 1/rank of the first relevant book, 20 queries.
 
-## 5. Qdrant + PostgreSQL join (`eval/demo_join.py`)
-The top-10 fantasy results from Qdrant (10 ids) are joined to PostgreSQL in one statement (`unnest(ids) WITH ORDINALITY`, which keeps the
-similarity order) to read availability and active loans. All 10 had a free copy. Qdrant cannot see availability, so this join is what turns
-"similar" into "similar and borrowable".
-
-## 6. Update across stores (`eval/demo_update_across.py`)
-The demo changes title and description of one book through the Advisor, borrows and returns it, then adds and deletes a book. Observed:
-
-| step | Redis | Qdrant | Neo4j |
+| mode | recall@5 | MRR | median latency |
 |---|---|---|---|
-| `update_book` (title + description) | cached decision deleted | vector changed, title and `refreshed_at` updated (only this book re-embedded) | node title "Deep Sea Engineering" |
-| `borrow` | – | – | `BORROWED` edge active |
-| `return_book` | – | – | edge marked returned |
-| `add_book` (2 copies) | – | new point | new Book node |
-| `delete_book` | – | point removed | node removed |
+| vector (Qdrant) | 0.73 | 0.821 | 4.2 ms |
+| keyword (PostgreSQL FTS) | 0.51 | 0.677 | 22.8 ms |
+| hybrid (RRF, K=60) | **0.76** | **0.925** | 29.1 ms |
 
-PostgreSQL and MongoDB stay the sources of record; the derived stores follow within the same call, without a sync. The full `sync`
-(about 10 minutes for 20k books on CPU) remains as a rebuild/repair job. The demo restores the data at the end.
+**pgvector vs Qdrant** (same 20 queries, 20,000 vectors each; recall@10 of ANN against exact search; median ms ANN / exact; filters keep 3.9% (`year>=2009`) and 48.7% (`year>=1998`) of the rows):
 
-## 7. Concurrency (`eval/demo_concurrency.py`)
-Two members try to take the last copy at the same time (barrier-started threads, separate connections), 20 rounds:
-in **20 of 20** rounds exactly one got `allow` and the other `waitlist`, and `available` ended at 0, never negative.
-The row lock serialises the two transactions; the `CHECK (available >= 0)` constraint is a second safety net.
+| setting | Qdrant | pgvector |
+|---|---|---|
+| quality (recall@5 / MRR) | 0.73 / 0.821 | 0.73 / 0.821 (top-10 overlap 1.0) |
+| no filter, ef 16 / 64 / 128 | 0.985 / 1.0 / 1.0, 2.7-3.0 vs 3.5 ms | 0.925 / 1.0 / 1.0, 1.3-2.2 vs 8.7-9.0 ms |
+| 3.9% filter, ef 64 | 1.0, 2.2 vs 2.2 ms | 0.985, 3.8 vs 3.8 ms |
+| 48.7% filter, ef 16 / 64 / 128 | 0.865 / 0.96 / 0.99, 2.8-3.4 vs 3.8-4.1 ms | 0.955 / 0.995 / 0.995, 1.6-2.7 vs 9.2-9.7 ms |
+| index size | HNSW m=16, ef_construct=100 | 41.0 MB, same parameters |
 
-## 8. Failure case: stale cached decision (`eval/demo_stale_cache.py`)
-`borrow()` invalidates Redis after the PostgreSQL commit. If the process dies between the two, or a copy is returned by another path,
-Redis keeps the old answer. Demo: Redis says `waitlist (no copy available)`, PostgreSQL already says `allow`; the cached read still returns
-`waitlist` with 300 s of TTL left. After explicit invalidation the next read returns `allow`.
-Impact: bounded by the TTL (300 s), and only the advice is affected, because `borrow()` always re-checks in PostgreSQL under the lock,
-so a stale entry cannot cause an oversold copy. Mitigations: shorter TTL, invalidate in the same code path as returns,
-or write invalidation events via an outbox table (not implemented).
+Reading: both stores give identical answers; pgvector's ANN is much faster than its exact scan (it scans 20,000 rows) while Qdrant's exact search is already fast.
+With the selective filter (788 rows, below `full_scan_threshold`) both effectively scan, so that row says nothing about HNSW. With the 48.7% filter Qdrant needs `ef >= 64` for recall 0.96, and pgvector with iterative scan stays above 0.95.
+Latencies include the Docker/WSL round trip and a CPU embedding model; they are not production figures. A **second** measure: concurrency 20/20, safety tests 34/34, data checks 21/21.
 
-## 9. Limitations
-- Genres of 20,248 dump books come from subject keywords; horror, fantasy and cooking have fewer books than other genres.
-- Book type, copy counts, loans and type-specific Mongo fields are synthetic; page counts of dump books are random.
-- Latency numbers include Docker/WSL network overhead and run on CPU embeddings; they are not production figures.
-- Labels for retrieval are regex rules, an approximation of human relevance judgements.
-- No pgvector comparison (see section 1); the 4.4% filter result does not exercise HNSW.
+**One wrong result explained.** Query "coming-of-age adventure for young readers" (label rule `young|boy|girl|teen|adventure`, many relevant books): the first relevant book is at rank 3 for
+vector search but rank 1 for keyword and hybrid search. The stage that caused it is **retrieval by meaning**: the embedding ranks books about growing up above books that contain the
+words of the label. Part of the gap is label noise (the label is a word match, the embedding a meaning match); weak queries 5, 6, 10, 18 and 20 (recall@5 = 0.4) have the same cause.
+Genres of the dump books are keyword heuristics, which adds noise.
 
-## 10. Application features
-One `shelfsense` command (installed with `pip install -e .`, `pyproject.toml`) and a full-screen TUI (`shelfsense` without arguments).
+## 5. Explaining one decision later
+Every decision row holds the time, outcome, reason, `rule_version`, `rule_id` and `inputs` (JSON with the member id/version/tier/suspended, book id/version/type/available,
+active loan count, holds/waitlist flags). `shelfsense explain <id>` (and the TUI Librarian tab, Enter on a decision) re-evaluates the *stored* inputs with the *stored* rule version, not the active one.
+Example from the saved run: **decision #1** — member `S_FULL`, book `free1`, rule version **1**. The stored inputs show 3 active loans, tier *standard*; rules v1 allow 3 loans,
+so rule `r2_limit` returned *reject*. After v2 (limit 4) was published, `explain 1` still reports v1 (active now: v2) and the replay gives *reject* (`replay_ok = true`); decision #2 was made under v2 and replays to *allow* (`r6_available`).
 
-| Feature | CLI | TUI | Stores involved |
-|---|---|---|---|
-| Loan decision + reason (allow / waitlist / reject) | `advise` | Advise tab: verdict banner and rule-by-rule trace | Redis cache, PostgreSQL |
-| Alternatives with a free copy (same author, also borrowed, similar text) | `advise`, `similar` | Advise, Book tabs | Neo4j, Qdrant, PostgreSQL, MongoDB |
-| Free-text recommendation, genre filter | `recommend` | Recommend tab | Qdrant, PostgreSQL, MongoDB |
-| Borrow / waitlist (race-free) | `borrow` | Advise tab, Borrow button | PostgreSQL, Redis, Neo4j |
-| Return with waitlist promotion; leave waitlist | `return` | Librarian and Member tabs | PostgreSQL, Redis, Neo4j |
-| Book catalogue changes | `book add / edit / delete` | – | PostgreSQL, MongoDB, Neo4j, Qdrant, Redis |
-| Search books and members | `search` | live search in the sidebar | PostgreSQL |
-| Member profile, book details per store | – | Member and Book tabs | PostgreSQL, MongoDB, Neo4j, Redis |
-| Store health, counts, cache viewer and flush, reset | `db status` | Stores tab | all five |
-| Loan test cases | `eval all` | Scenarios tab (15/15) | PostgreSQL |
-| Demos and evaluation | `eval vectors / join / concurrency / stale-cache / update-across / all` | Demos tab (live log) | all five |
-| Data pipeline | `data build / fetch / generate / labels`, `db load`, `db sync` | – | – |
+## 6. Limitations and honesty notes
+- Retrieval labels are regex rules: an approximation of human judgement. Keyword and hybrid search may profit from this.
+- Book type, copies, loans and Mongo type fields are synthetic; 20,000 books is larger than the handout's 200-1,000, so HNSW thresholds apply.
+- 37 pairs of books share title and year (distinct Open Library works); `db check` reports them as a warning.
+- Tests use separate PostgreSQL, MongoDB and Redis databases but the real Neo4j and Qdrant with throw-away ids; the suite removes the leftovers.
 
-TUI keys: F1 help, F2–F9 tabs, Ctrl+T theme, Ctrl+E export of the last answer to `exports/`, Ctrl+R refresh, Ctrl+Q quit.
-Demo scenarios with members, books and expected results are in `TEST_CASES.md` (38 cases and a 5-minute demo order).
-
-## 11. How to reproduce
-Data pipeline: `shelfsense data build --books N` streams the Open Library dumps into `data/raw/books.json`
-(`fetch_books.py`), adds synthetic members, copies, loans and waitlist scaled to N into `data/generated/*.json` (`generate.py`)
-and writes the labels (`generate.py` the loan cases, `build_labels.py` the retrieval queries); `load_sources` loads
-PostgreSQL and MongoDB from those files (and rebuilds the Neo4j graph); `sync` builds Neo4j and Qdrant from the two databases (the slow, one-time step; afterwards changes are propagated incrementally). The JSON files are build outputs
-and can be recreated at any time. The numbers in this report are from the 20,685-book snapshot.
+## 7. Reproduce
 ```
-shelfsense db up
-shelfsense data build --books 20000
-shelfsense db load && shelfsense db sync     # sync is the slow step, done once
-shelfsense test                              # uses test databases, no re-sync needed
-shelfsense eval all                          # writes report/results.txt and results.json
+shelfsense db up && shelfsense data build --books 20000
+shelfsense db load && shelfsense db sync        # sync is the slow one-time step (also fills pgvector and full text)
+shelfsense db derived --adopt                   # mark all copies current once, after a fresh sync
+shelfsense test                                 # 108 tests
+shelfsense eval all                             # report/results.txt and results.json
+shelfsense db check                             # 21 data checks
 ```

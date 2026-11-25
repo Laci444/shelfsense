@@ -52,7 +52,7 @@ Rows in the Advise alternatives, Recommend, Book, Member and Scenarios tables se
  F3 Recommend   free-text search (Qdrant) limited to books with a free copy
  F4 Book        what each store knows about the book + similar books
  F5 Member      loans, waitlist, history; return a loan or leave a waitlist
- F6 Librarian   return a book (the waitlist is served), decision log
+ F6 Librarian   return a book (the waitlist is served), decision log, explain a decision
  F7 Stores      health, counts, Redis cache entries, reset data
  F8 Scenarios   the 15 loan test cases (run one or all)
  F9 Demos       concurrency, stale cache, update across stores, join, vector evaluation
@@ -164,6 +164,7 @@ class ShelfSenseApp(App):
     #trace { padding: 0 1; border: round $primary 60%; height: auto; }
     #alts, #recs, #similar, #loans, #wl, #history, #decisions, #cache, #cases, #bookwl { height: 1fr; min-height: 4; }
     #book-info, #member-info, #store-stats { height: auto; }
+    #why { height: auto; min-height: 3; padding: 0 1; margin: 1 0; border: round $primary 60%; }
     #demo-log { border: round $primary 60%; height: 1fr; }
     Select { margin-bottom: 1; width: 30; }
     #case-summary { padding: 1 2; }
@@ -253,6 +254,9 @@ class ShelfSenseApp(App):
                         yield DataTable(id="bookwl", cursor_type="row", zebra_stripes=True)
                         yield Static("Latest decisions", classes="title")
                         yield DataTable(id="decisions", cursor_type="row", zebra_stripes=True)
+                        yield Static("Why (Enter on a decision, or the button): the stored evidence is "
+                                     "re-evaluated with the rule version it was made under.", id="why")
+                        yield Button("Explain selected decision", id="explain-decision")
                     with TabPane("Stores", id="t-stores"):
                         with Horizontal(classes="buttons"):
                             yield Button("Refresh", id="stores-refresh", variant="primary")
@@ -451,6 +455,8 @@ class ShelfSenseApp(App):
             self.select_book(key or str(row[0]), str(row[1]))
         elif tid == "cases":
             self.case_selected(key)
+        elif tid == "decisions":
+            self.explain_decision(int(e.data_table.get_row(e.row_key)[0].plain))
 
     # --- tabs & app actions -----------------------------------------------------------
     def action_tab(self, name):
@@ -543,6 +549,12 @@ class ShelfSenseApp(App):
             mb = self.need_both()
             if mb:
                 self.do_return(*mb)
+        elif bid == "explain-decision":
+            t = self.query_one("#decisions", DataTable)
+            if t.row_count:
+                self.explain_decision(int(t.get_row_at(t.cursor_row)[0].plain))
+            else:
+                self.notify("no decisions yet", severity="warning")
         elif bid == "lib-refresh":
             self.load_decisions()
             self.load_book()
@@ -723,6 +735,26 @@ class ShelfSenseApp(App):
             fill(self.query_one("#decisions", DataTable),
                  [[r[0], str(r[1])[5:16], r[2], r[3], r[4][:30], outcome_cell(r[5]), r[6], f"v{r[7]}"] for r in rows])
         self.bg(lambda: postgres.recent_decisions(self.advisor.pg), done, wait=False)
+
+    def explain_decision(self, decision_id):
+        def done(x):
+            d, rs = x["decision"], x["rules"]
+            lines = [f"[b]Decision #{d['id']}[/b]  {escape(str(d['outcome']).upper())}: {escape(d['reason'])}",
+                     f"[dim]{escape(str(d['member']))} → {escape(str(d['book']))}, made under rule version "
+                     f"v{d['rule_version']} (active now: v{x['active_version']})[/dim]"]
+            failed = False
+            for r in x["trace"]:
+                if failed:
+                    lines.append(f"[dim]– {escape(r['rule'])}[/dim]")
+                elif r["ok"]:
+                    lines.append(f"[green]✔[/green] {escape(r['rule'])} [dim]({escape(r['detail'])})[/dim]")
+                else:
+                    failed = True
+                    lines.append(f"[red]✘ {escape(r['rule'])}[/red] [dim]({escape(r['detail'])})[/dim]")
+            lines.append("[green]replay reproduces the stored outcome[/green]" if x["replay_ok"]
+                         else f"[red]replay gives {escape(x['replay_outcome'])}, stored outcome differs[/red]")
+            self.query_one("#why", Static).update("\n".join(lines))
+        self.bg(lambda: self.advisor.explain_decision(decision_id), done)
 
     def load_stores(self):
         def job():

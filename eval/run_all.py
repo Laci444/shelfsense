@@ -10,12 +10,32 @@ from pathlib import Path
 
 from pymongo.errors import WriteError
 
-from eval import demo_concurrency, demo_join, demo_stale_cache, demo_update_across, eval_vectors
+from eval import (demo_concurrency, demo_join, demo_rules, demo_stale_cache, demo_stale_derived,
+                  demo_update_across, eval_compare, eval_hybrid, eval_vectors)
+from shelfsense import check, labels
 from shelfsense.config import DATA_DIR
 from shelfsense.stores import mongo, neo4j_graph, postgres, qdrant_store
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "report"
+
+
+def safety_tests():
+    """Run the safety / duplicate tests (they use the test databases) and keep the pass count."""
+    import re
+    import subprocess
+    import sys
+    p = subprocess.run([sys.executable, "-m", "pytest", "-q", "tests/test_safety.py"], cwd=ROOT,
+                       capture_output=True, text=True)
+    m = re.search(r"(\d+) passed", p.stdout)
+    failed = re.search(r"(\d+) failed", p.stdout)
+    return {"passed": int(m.group(1)) if m else 0, "failed": int(failed.group(1)) if failed else 0}
+
+
+def data_checks():
+    rows = check.run()
+    return {"checks": len(rows), "passed": sum(1 for _, ok, _ in rows if ok),
+            "failed": [{"check": n, "detail": d} for n, ok, d in rows if not ok]}
 
 
 def store_counts():
@@ -88,6 +108,28 @@ def text_summary(r):
                   10, r["join"]["qdrant_top_k"], r["join"]["free_after_join"]),
               "", "Stale cache: " + json.dumps(r["stale_cache"]),
               "", "Update across stores: " + json.dumps(r["update_across"])]
+    lines += ["", f"Labels frozen: {r['labels']['frozen']} (since {r['labels']['frozen_on']}), "
+                  f"unchanged: {r['labels']['ok']}, counts {json.dumps(r['labels']['counts'])}",
+              "", f"Hybrid search ({r['hybrid']['n_queries']} queries):"]
+    for m, x in r["hybrid"]["modes"].items():
+        lines.append(f"  {m:<8} recall@5={x['recall@5']}  MRR={x['MRR']}  {x['latency_ms']} ms")
+    ex = r["hybrid"]["example"]
+    lines.append(f"  explained query: {ex['query']!r}, first relevant rank per mode: "
+                 + json.dumps({m: d['first_relevant_rank_in_top50'] for m, d in ex['per_mode'].items()}))
+    cp = r["compare"]
+    lines += ["", f"pgvector vs Qdrant ({cp['n_queries']} queries, {cp['vectors']}): top-10 overlap "
+                  f"{cp['top10_overlap_between_stores']}, pgvector index {cp['pgvector_index_mb']} MB"]
+    for s in ("qdrant", "pgvector"):
+        lines.append(f"  {s}: quality {json.dumps(cp[s]['quality'])}")
+        for key in ("ann_unfiltered", "filter_5pct", "filter_50pct"):
+            lines.append(f"    {key}: " + "; ".join(
+                f"ef={x['ef']} recall@10={x['ann_recall@10']} {x['latency_ms']}/{x['exact_latency_ms']} ms"
+                for x in cp[s][key]))
+    lines += ["", "Rules demo: " + json.dumps(r["rules_demo"]),
+              "", "Stale derived data: " + json.dumps(r["stale_derived"], default=str),
+              "", f"Safety tests: {json.dumps(r['safety_tests'])}",
+              f"Data checks: {r['data_checks']['passed']}/{r['data_checks']['checks']} passed "
+              + json.dumps(r["data_checks"]["failed"])]
     return "\n".join(lines)
 
 
@@ -102,6 +144,15 @@ def main():
     r["concurrency"] = demo_concurrency.run(verbose=False)
     r["stale_cache"] = demo_stale_cache.run(verbose=False)
     r["update_across"] = demo_update_across.run(verbose=False)
+    r["labels"] = labels.verify()
+    r["hybrid"] = eval_hybrid.run()
+    r["compare"] = eval_compare.run()
+    r["rules_demo"] = demo_rules.run(verbose=False)
+    r["stale_derived"] = demo_stale_derived.run(verbose=False)
+    r["safety_tests"] = safety_tests()
+    from shelfsense import sync
+    sync.sync_graph()  # the demos above reload PostgreSQL; bring the graph back in step before the checks
+    r["data_checks"] = data_checks()
     r["seconds"] = round(time.time() - t0, 1)
     OUT.mkdir(exist_ok=True)
     (OUT / "results.json").write_text(json.dumps(r, indent=1, default=str), encoding="utf-8")

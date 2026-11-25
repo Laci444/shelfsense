@@ -1,31 +1,56 @@
-ShelfSense results  (2026-10-20 19:58:12, python 3.14.8)
+ShelfSense results  (2026-11-25 18:47:50, python 3.14.8)
 
-Store counts: {"postgres": {"members": 3006, "books": 20685, "loans": 24691, "waitlist": 401}, "mongo_books": 20685, "neo4j": {"books": 20685, "borrowed_edges": 24689}, "qdrant_points": 20685}
-Qdrant: 20685 points, 15104 indexed, 2 segments, hnsw m=16 ef_construct=100 full_scan_threshold=10000 KB
+Store counts: {"postgres": {"members": 2906, "books": 20000, "loans": 24512, "waitlist": 401}, "mongo_books": 20000, "neo4j": {"books": 20000, "borrowed_edges": 24506}, "qdrant_points": 20000}
+Qdrant: 20000 points, 14848 indexed, 2 segments, hnsw m=16 ef_construct=100 full_scan_threshold=10000 KB
 Loan cases: 15/15 correct
 Mongo validation: {"ebook without size_mb": "rejected by $jsonSchema", "journal with paperback fields": "rejected by $jsonSchema"}
 
-Retrieval (20 queries): recall@5=0.73  MRR=0.846
-per query (id: relevant, recall@5): 1:2411,1.0, 2:318,1.0, 3:144,1.0, 4:558,0.6, 5:334,0.8, 6:85,0.8, 7:600,0.8, 8:2519,0.6, 9:267,1.0, 10:69,0.4, 11:1102,0.6, 12:574,0.4, 13:215,0.6, 14:219,1.0, 15:508,0.6, 16:958,1.0, 17:835,0.8, 18:537,0.4, 19:1414,1.0, 20:2578,0.2
+Retrieval (20 queries): recall@5=0.73  MRR=0.821
+per query (id: relevant, recall@5): 1:2680,1.0, 2:335,1.0, 3:76,0.8, 4:336,0.8, 5:216,0.4, 6:57,0.4, 7:363,0.6, 8:2963,0.8, 9:156,0.6, 10:44,0.4, 11:1296,0.8, 12:675,0.6, 13:254,0.8, 14:254,1.0, 15:380,0.8, 16:573,1.0, 17:1000,1.0, 18:557,0.4, 19:1679,1.0, 20:2079,0.4
 
 ANN vs exact (recall@10, latency ms ANN / exact):
-  no filter: 20685 rows (100.0%)
-    hnsw_ef=16   recall@10=0.945  returned avg/min=10/10  3.32 / 3.98
-    hnsw_ef=64   recall@10=0.995  returned avg/min=10/10  3.49 / 4.5
-    hnsw_ef=128  recall@10=1.0  returned avg/min=10/10  3.1 / 3.84
-  filter year >= 2009: 908 rows (4.4%)
-    hnsw_ef=16   recall@10=1.0  returned avg/min=10/10  2.41 / 2.27
-    hnsw_ef=64   recall@10=1.0  returned avg/min=10/10  2.31 / 2.4
-    hnsw_ef=128  recall@10=1.0  returned avg/min=10/10  2.25 / 2.23
-  filter year >= 1998: 10005 rows (48.4%)
-    hnsw_ef=16   recall@10=0.85  returned avg/min=10/10  2.63 / 3.78
-    hnsw_ef=64   recall@10=0.99  returned avg/min=10/10  2.63 / 3.76
-    hnsw_ef=128  recall@10=0.99  returned avg/min=10/10  3.57 / 4.43
+  no filter: 20000 rows (100.0%)
+    hnsw_ef=16   recall@10=0.985  returned avg/min=10/10  3.04 / 3.86
+    hnsw_ef=64   recall@10=1.0  returned avg/min=10/10  3.01 / 3.91
+    hnsw_ef=128  recall@10=1.0  returned avg/min=10/10  3.07 / 3.66
+  filter year >= 2009: 788 rows (3.9%)
+    hnsw_ef=16   recall@10=1.0  returned avg/min=10/10  1.98 / 1.95
+    hnsw_ef=64   recall@10=1.0  returned avg/min=10/10  1.97 / 1.95
+    hnsw_ef=128  recall@10=1.0  returned avg/min=10/10  2.01 / 2.1
+  filter year >= 1998: 9742 rows (48.7%)
+    hnsw_ef=16   recall@10=0.865  returned avg/min=10/10  2.69 / 3.66
+    hnsw_ef=64   recall@10=0.96  returned avg/min=10/10  2.76 / 3.62
+    hnsw_ef=128  recall@10=0.99  returned avg/min=10/10  2.99 / 3.79
 
 Concurrency: 20/20 rounds exactly one allow + one waitlist
 
-Qdrant + PostgreSQL join: top-10 -> 10 ids -> 10 with a free copy
+Qdrant + PostgreSQL join: top-10 -> 10 ids -> 9 with a free copy
 
 Stale cache: {"first_read": ["waitlist", "no copy available", false], "postgres_truth": ["allow", "copy available"], "cached_read_after_change": ["waitlist", "no copy available", true], "ttl_left_s": 300, "after_invalidation": ["allow", "copy available", false]}
 
-Update across stores: {"before": {"qdrant_title": "The Caves of Steel", "neo4j_title": "The Caves of Steel", "neo4j_edge": null}, "after_update_book": {"redis_decision_invalidated": true, "qdrant_vector_changed": true, "qdrant_title": "Deep Sea Engineering", "qdrant_refreshed_at_moved": true, "neo4j_title": "Deep Sea Engineering"}, "after_borrow": {"neo4j_edge": "active"}, "after_return": {"neo4j_edge": "returned"}, "after_add_book": {"qdrant_has_point": true, "neo4j_title": "Demo: A Book About Bees", "postgres_copies": 2}, "after_delete_book": {"qdrant_has_point": false, "neo4j_title": null, "mongo_has_doc": false}, "derived_errors": []}
+Update across stores: {"before": {"qdrant_title": "Discrete and computational geometry", "neo4j_title": "Discrete and computational geometry", "neo4j_edge": null}, "after_update_book": {"redis_decision_invalidated": true, "qdrant_vector_changed": true, "qdrant_title": "Deep Sea Engineering", "qdrant_refreshed_at_moved": true, "neo4j_title": "Deep Sea Engineering"}, "after_borrow": {"neo4j_edge": "active"}, "after_return": {"neo4j_edge": "returned"}, "after_add_book": {"qdrant_has_point": true, "neo4j_title": "Demo: A Book About Bees", "postgres_copies": 2}, "after_delete_book": {"qdrant_has_point": false, "neo4j_title": null, "mongo_has_doc": false}, "derived_errors": []}
+
+Labels frozen: True (since 2026-11-25), unchanged: True, counts {"interest_queries": 20, "loan_cases": 15}
+
+Hybrid search (20 queries):
+  vector   recall@5=0.73  MRR=0.821  4.2 ms
+  keyword  recall@5=0.51  MRR=0.677  22.8 ms
+  hybrid   recall@5=0.76  MRR=0.925  29.1 ms
+  explained query: 'coming-of-age adventure for young readers', first relevant rank per mode: {"vector": 3, "keyword": 1, "hybrid": 1}
+
+pgvector vs Qdrant (20 queries, {'qdrant': 20000, 'pgvector': 20000}): top-10 overlap 1.0, pgvector index 41.0 MB
+  qdrant: quality {"recall@5": 0.73, "MRR": 0.821}
+    ann_unfiltered: ef=16 recall@10=0.985 2.72/3.43 ms; ef=64 recall@10=1.0 2.81/3.53 ms; ef=128 recall@10=1.0 2.95/3.53 ms
+    filter_5pct: ef=16 recall@10=1.0 2.11/2.12 ms; ef=64 recall@10=1.0 2.21/2.2 ms; ef=128 recall@10=1.0 2.38/2.28 ms
+    filter_50pct: ef=16 recall@10=0.865 3.4/4.13 ms; ef=64 recall@10=0.96 2.88/3.81 ms; ef=128 recall@10=0.99 2.81/3.75 ms
+  pgvector: quality {"recall@5": 0.73, "MRR": 0.821}
+    ann_unfiltered: ef=16 recall@10=0.925 1.32/8.7 ms; ef=64 recall@10=1.0 1.81/8.79 ms; ef=128 recall@10=1.0 2.24/9.04 ms
+    filter_5pct: ef=16 recall@10=0.985 3.7/3.68 ms; ef=64 recall@10=0.985 3.77/3.78 ms; ef=128 recall@10=0.99 4.46/3.74 ms
+    filter_50pct: ef=16 recall@10=0.955 1.6/9.26 ms; ef=64 recall@10=0.995 1.75/9.21 ms; ef=128 recall@10=0.995 2.7/9.68 ms
+
+Rules demo: {"v1_outcome": "reject", "v2_outcome": "allow", "old_decision": {"rule_version": 1, "replay_ok": true, "active_version_at_explain": 2}, "new_decision": {"rule_version": 2, "replay_ok": true}}
+
+Stale derived data: {"before": {"source_version": 1, "stores": {"neo4j": 1, "qdrant": 1, "pgvector": 1, "fts": 1}, "vector_hit": false, "keyword_hit": false, "qdrant_payload_version": 1}, "stale": {"source_version": 2, "stores": {"neo4j": 1, "qdrant": 1, "pgvector": 1, "fts": 1}, "vector_hit": false, "keyword_hit": false, "qdrant_payload_version": 1}, "refresh": {"refreshed": {"neo4j": 2, "qdrant": 2, "pgvector": 2, "fts": 2}, "orphans_removed": {"neo4j": 0, "qdrant": 0, "pgvector": 0, "fts": 0}, "seconds": 0.93, "errors": []}, "after": {"source_version": 2, "stores": {"neo4j": 2, "qdrant": 2, "pgvector": 2, "fts": 2}, "vector_hit": true, "keyword_hit": true, "qdrant_payload_version": 2}}
+
+Safety tests: {"passed": 34, "failed": 0}
+Data checks: 21/21 passed []
